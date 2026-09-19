@@ -1,0 +1,78 @@
+# ==============================
+# Unity generated folders
+# ==============================
+
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# ==============================
+# Unity User Settings
+# ==============================
+
+UserSettings/
+
+# ==============================
+# IDE / Visual Studio / Rider
+# ==============================
+
+.vs/
+.idea/
+
+*.csproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Rider
+*.sln.iml
+
+# ==============================
+# OS files
+# ==============================
+
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ==============================
+# Unity crash reports
+# ==============================
+
+sysinfo.txt
+
+# ==============================
+# Builds
+# ==============================
+
+*.apk
+*.aab
+*.unitypackage
+
+# ==============================
+# Addressables generated data
+# ==============================
+
+/ServerData/
+
+# ==============================
+# Temporary files
+# ==============================
+
+*.tmp
+*.bak
+*.swp
+*~
