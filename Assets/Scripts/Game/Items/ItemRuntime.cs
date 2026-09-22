@@ -8,4 +8,10 @@ public abstract class ItemRuntime
     {
         
     }
+
+    public virtual void ModifyAttack(AttackPlan plan)
+    {
+        
+    }
+
 }

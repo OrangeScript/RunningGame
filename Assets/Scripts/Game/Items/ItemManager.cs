@@ -21,7 +21,13 @@ public class ItemManager : MonoBehaviour
             item.ModifyProjectile(spec);
         }
     }
-
+    public void ModifyAttack(AttackPlan plan)
+    {
+        foreach(ItemRuntime item in items)
+        {
+            item.ModifyAttack(plan);
+        }
+    }
     public void Acquire(UpgradeData upgrade)
     {
         if(upgrade == null) return;

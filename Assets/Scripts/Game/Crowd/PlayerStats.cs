@@ -2,6 +2,8 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+//  “如果玩家现在什么特殊道具都没有，这轮攻击应该是什么样？”
+// 以及一些角色应该有的基础属性
 public class PlayerStats : MonoBehaviour
 {
     [Header("Movement")]
@@ -34,6 +36,44 @@ public class PlayerStats : MonoBehaviour
     public int MaxProjectilesPerVolley => baseMaxProjectilesPerVolley + extraProjectiles;
 
     public float ShotSpacing => baseShotSpacing;
+
+
+    public AttackPlan CreateAttackPlan(int population,ProjectileArchetype archetype)
+    {
+        
+        int projectileCount =
+            Mathf.CeilToInt(
+                population /
+                (float)basePopulationPerProjectile
+            );
+
+        projectileCount =
+            Mathf.Clamp(
+                projectileCount,
+                1,
+                baseMaxProjectilesPerVolley
+            );
+
+
+        return new AttackPlan
+        {
+            damage = baseDamage,
+
+            attackInterval =
+                baseAttackInterval,
+
+            attackRange =
+                baseAttackRange,
+
+            projectileCount =
+                projectileCount,
+
+            shotSpacing =
+                baseShotSpacing,
+
+            projectileArchetype = archetype
+        };
+    }
 
     public void AddDamagePercent(float percent)
     {

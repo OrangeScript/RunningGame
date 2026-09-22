@@ -9,10 +9,9 @@ public class AutoCombat : MonoBehaviour
     [Header("References")]
     [SerializeField]CrowdManager crowd;
     [SerializeField] Transform firePoint;
-    [SerializeField] Projectile projectilePrefab;
     [SerializeField] private PlayerStats stats;
     [SerializeField] private ItemManager itemManager;
-    [SerializeField] private ProjectileSpec baseSpec;
+    [SerializeField] private ProjectileArchetype archetype;
 
     [Header("Target")]
     [SerializeField] private LayerMask enemyLayer;
@@ -26,44 +25,56 @@ public class AutoCombat : MonoBehaviour
     {
         if(crowd == null) return;
         if(crowd.Population <= 0) return;
+        if(stats == null) return;
+        if(itemManager == null) return;
+        if(isFiring) return;
         if(Time.time < nextFireTime) return;
-        Enemy target = FindNearestEnemy();
+
+        AttackPlan plan = CreateAttackPlan();
+
+        Enemy target = FindNearestEnemy(plan.attackRange);
         if(target == null)  return;
         nextFireTime = Time.time + stats.AttackInterval;
-        Fire(target);
+        Fire(target,plan);
     }
 
-    void Fire(Enemy target)
+
+    private AttackPlan CreateAttackPlan()
+    {
+        AttackPlan plan = stats.CreateAttackPlan(crowd.Population,archetype);
+        itemManager.ModifyAttack(plan);
+        return plan;
+    }
+
+    void Fire(Enemy target,AttackPlan plan)
     {
 
         if(isFiring) return;
 
-        StartCoroutine(FireVolley(target));
+        StartCoroutine(FireVolley(target,plan));
 
     }
 
-    IEnumerator FireVolley(Enemy target)
+    IEnumerator FireVolley(Enemy target,AttackPlan plan)
     {
         isFiring = true;
-        int projectileCount = Mathf.CeilToInt(crowd.Population / (float)stats.PopulationPerProjectile);
+        // int projectileCount = Mathf.CeilToInt(crowd.Population / (float)stats.PopulationPerProjectile);
 
-        projectileCount = Mathf.Clamp(projectileCount,1,stats.MaxProjectilesPerVolley);
+        // projectileCount = Mathf.Clamp(projectileCount,1,stats.MaxProjectilesPerVolley);
 
-        for(int i = 0; i< projectileCount; i++)
+        for(int i = 0; i< plan.projectileCount; i++)
         {
-            Transform shooter = GetShooter(i,projectileCount);
+            Transform shooter = GetShooter(i,plan.projectileCount);
 
             Vector3 spawnPosition = shooter.position+Vector3.up*0.5f+transform.forward*0.3f;
 
-            ProjectileSpec spec =  baseSpec.Clone();
-            spec.damage = stats.Damage;
-
+            ProjectileSpec spec =  plan.projectileArchetype.CreateSpec(plan.damage);
             itemManager.ModifyProjectile(spec);
 
 
-            Projectile projectile = Instantiate(projectilePrefab,spawnPosition,Quaternion.identity);
+            Projectile projectile = Instantiate(spec.prefab,spawnPosition,Quaternion.identity);
             projectile.Initialize(spec,target);
-            yield return new WaitForSeconds(stats.ShotSpacing);
+            yield return new WaitForSeconds(plan.shotSpacing);
         }
         isFiring = false;
 
@@ -91,11 +102,11 @@ public class AutoCombat : MonoBehaviour
     }
 
 
-    Enemy FindNearestEnemy()
+    Enemy FindNearestEnemy(float attackRange)
     {
         Collider[] hits = Physics.OverlapSphere(
             transform.position,
-            stats.AttackRange,
+            attackRange,
             enemyLayer,
             QueryTriggerInteraction.Collide
         );
