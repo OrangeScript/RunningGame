@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using Unity.Mathematics;
+using Unity.VisualScripting;
 using UnityEngine;
 
 public class CrowdManager : MonoBehaviour
@@ -17,7 +18,16 @@ public class CrowdManager : MonoBehaviour
     [Header("Formation")]
     [SerializeField] private float spacing = 0.65f;
     private readonly List<GameObject> units = new List<GameObject>();
+    public int UnitCount => units.Count;
+    public Transform GetUnitTransform(int index)
+    {
+        if(index < 0 || index >= units.Count)
+        {
+            return null;
+        }
 
+        return units[index].transform;
+    }
 
     public int Population => population;
     void Start()
