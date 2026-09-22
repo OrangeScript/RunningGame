@@ -11,6 +11,7 @@ public class AutoCombat : MonoBehaviour
     [SerializeField] Transform firePoint;
     [SerializeField] Projectile projectilePrefab;
     [SerializeField] private PlayerStats stats;
+    [SerializeField] private ItemManager itemManager;
 
     [Header("Target")]
     [SerializeField] private LayerMask enemyLayer;
@@ -53,8 +54,19 @@ public class AutoCombat : MonoBehaviour
 
             Vector3 spawnPosition = shooter.position+Vector3.up*0.5f+transform.forward*0.3f;
 
+            ProjectileSpec spec =  new ProjectileSpec
+                {
+                    damage = stats.Damage,
+                    speed = 18f,
+                    sizeMultiplier = 1f,
+                    element = ElementType.None
+                };
+
+            itemManager.ModifyProjectile(spec);
+
+
             Projectile projectile = Instantiate(projectilePrefab,spawnPosition,Quaternion.identity);
-            projectile.Initialize(stats.Damage,target);
+            projectile.Initialize(spec,target);
             yield return new WaitForSeconds(stats.ShotSpacing);
         }
         isFiring = false;

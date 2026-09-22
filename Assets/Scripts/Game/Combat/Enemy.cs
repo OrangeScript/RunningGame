@@ -8,7 +8,7 @@ public class Enemy : MonoBehaviour
 {
     
    [Header("Health")]
-   [SerializeField] private int maxHealth = 8;
+   [SerializeField] private float maxHealth = 8;
    [Header("Movement")]
    [SerializeField] private float moveSpeed = 2.5f;
    [SerializeField] private float attackDistance = 1.5f;
@@ -19,7 +19,7 @@ public class Enemy : MonoBehaviour
 
    [Header("Target")]
    [SerializeField] private Transform aimPoint;
-   private int currentHealth;
+   private float currentHealth;
    private Transform player;
    private CrowdManager crowd;
    private float nextAttackTime;
@@ -84,7 +84,7 @@ public class Enemy : MonoBehaviour
         Debug.Log($"Enemy Attack!");
     }
 
-    public void TakeDamage(int damage)
+    public void TakeDamage(float damage)
     {
         if (isDead)
         {

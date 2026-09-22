@@ -9,12 +9,14 @@ public class Projectile : MonoBehaviour
     [SerializeField] private float hitDistance = 0.2f;
     [SerializeField] private float lifeTime = 3f;
     private Enemy target;
-    private int damage;
+    private float damage;
     private float destoryTime;
 
-    public void Initialize(int damage,Enemy target)
+    public void Initialize(ProjectileSpec spec,Enemy target)
     {
-        this.damage = damage;
+        this.damage = spec.damage;
+        this.speed = spec.speed;
+        transform.localScale *= spec.sizeMultiplier;
         this.target = target;
         this.destoryTime = lifeTime + Time.time;
     }
