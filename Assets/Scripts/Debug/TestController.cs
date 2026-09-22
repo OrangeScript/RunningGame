@@ -4,15 +4,30 @@ using UnityEngine;
 
 public class TestController : MonoBehaviour
 {
-    // Start is called before the first frame update
-    void Start()
-    {
-        
-    }
+    [Header("Items")]
 
-    // Update is called once per frame
-    void Update()
+    [SerializeField]
+    private ItemManager itemManager;
+
+    [SerializeField]
+    private UpgradeData heavyBullet;
+
+    [SerializeField]
+    private UpgradeData iceCore;
+    private void Update()
     {
-        
+        if (Input.GetKeyDown(KeyCode.Q))
+        {
+            itemManager.Acquire(
+                heavyBullet
+            );
+        }
+
+        if (Input.GetKeyDown(KeyCode.W))
+        {
+            itemManager.Acquire(
+                iceCore
+            );
+        }
     }
 }

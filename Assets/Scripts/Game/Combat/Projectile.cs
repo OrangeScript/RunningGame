@@ -11,6 +11,14 @@ public class Projectile : MonoBehaviour
     private Enemy target;
     private float damage;
     private float destoryTime;
+    private Vector3 scale;
+    [SerializeField] private Renderer projectileRenderer;
+
+
+    void Awake()
+    {
+        scale = transform.localScale;
+    }
 
     public void Initialize(ProjectileSpec spec,Enemy target)
     {
@@ -18,7 +26,49 @@ public class Projectile : MonoBehaviour
         this.speed = spec.speed;
         transform.localScale *= spec.sizeMultiplier;
         this.target = target;
+        ApplyElementVisual(spec.element);
         this.destoryTime = lifeTime + Time.time;
+    }
+
+    private void ApplyElementVisual(ElementType element)
+    {
+        if (projectileRenderer == null)
+            return;
+
+
+        switch (element)
+        {
+            case ElementType.Ice:
+
+                projectileRenderer.material.color =
+                    Color.cyan;
+
+                break;
+
+
+            case ElementType.Fire:
+
+                projectileRenderer.material.color =
+                    Color.red;
+
+                break;
+
+
+            case ElementType.Lightning:
+
+                projectileRenderer.material.color =
+                    Color.yellow;
+
+                break;
+
+
+            default:
+
+                projectileRenderer.material.color =
+                    Color.white;
+
+                break;
+        }
     }
     // Start is called before the first frame update
     void Start()

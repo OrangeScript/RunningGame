@@ -99,3 +99,4 @@ MonoBehaviour:
   speed: 18
   hitDistance: 0.2
   lifeTime: 3
+  projectileRenderer: {fileID: 76238380848827541}
