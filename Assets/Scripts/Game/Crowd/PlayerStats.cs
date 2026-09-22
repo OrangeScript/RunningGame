@@ -11,7 +11,7 @@ public class PlayerStats : MonoBehaviour
 
     [Header("Attack")]
     [SerializeField] float baseAttackInterval = 0.5f;
-    [SerializeField] int baseDamage = 1;
+    [SerializeField] float baseDamage = 1f;
     [SerializeField] float baseAttackRange = .05f;
 
 
@@ -21,14 +21,13 @@ public class PlayerStats : MonoBehaviour
     [SerializeField] int baseMaxProjectilesPerVolley = 12;
     [SerializeField] float baseShotSpacing = .04f;
 
-    float damageMultiplier = 1f;
     float attackSpeedMultiplier = 1f;
     float attackRadiusBonus = 0f;
     int  projectilePopulationBonus = 0;
     int extraProjectiles = 0;
 
 
-    public int Damage => Mathf.Max(1,Mathf.RoundToInt(baseDamage * damageMultiplier));
+    public float Damage => baseDamage;
     public float AttackInterval => baseAttackInterval / attackSpeedMultiplier;
     public float AttackRange => baseAttackRange + attackRadiusBonus;
     public int PopulationPerProjectile => Mathf.Max(1,basePopulationPerProjectile - projectilePopulationBonus);
@@ -57,7 +56,7 @@ public class PlayerStats : MonoBehaviour
 
         return new AttackPlan
         {
-            damage = baseDamage,
+            damageMultiplier = 1f,
 
             attackInterval =
                 baseAttackInterval,
@@ -75,34 +74,6 @@ public class PlayerStats : MonoBehaviour
         };
     }
 
-    public void AddDamagePercent(float percent)
-    {
-        damageMultiplier *=
-            1f + percent;
-    }
 
 
-    public void AddAttackSpeedPercent(float percent)
-    {
-        attackSpeedMultiplier *=
-            1f + percent;
-    }
-
-
-    public void AddAttackRange(float amount)
-    {
-        attackRadiusBonus += amount;
-    }
-
-
-    public void ImprovePopulationPerProjectile(int amount)
-    {
-        projectilePopulationBonus += amount;
-    }
-
-
-    public void AddMaxProjectiles(int amount)
-    {
-        extraProjectiles += amount;
-    }
 }

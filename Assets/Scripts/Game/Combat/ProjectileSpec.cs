@@ -8,7 +8,6 @@ using UnityEngine;
 public class ProjectileSpec
 {
 
-    public Projectile prefab;
     public float damage = 1f;
     public float speed = 10f;
     public float sizeMultiplier = 1f;
@@ -17,7 +16,6 @@ public class ProjectileSpec
     public ProjectileSpec Clone()
     {
         return new ProjectileSpec{
-            prefab = prefab,
             damage = damage,
             speed = speed,
             sizeMultiplier = sizeMultiplier,

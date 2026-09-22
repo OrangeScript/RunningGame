@@ -8,7 +8,6 @@ public class OneShotArmyRuntime : ItemRuntime
     {
         base.ModifyAttack(plan);
         plan.projectileCount = 1;
-        plan.damage *= 5f;
         plan.attackInterval /= 2f;
     }
 }

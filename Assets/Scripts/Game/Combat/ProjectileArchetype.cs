@@ -13,13 +13,11 @@ public class ProjectileArchetype : ScriptableObject
     [SerializeField] private float baseSize = 1f;
 
     [SerializeField] private ElementType baseElement = ElementType.None;
-
+    public Projectile ProjectilePrefab => projectilePrefab;
     public ProjectileSpec CreateSpec(float damage)
     {
         return new ProjectileSpec
         {
-            prefab =
-                projectilePrefab,
 
             damage =
                 damage,

@@ -16,10 +16,6 @@ public class AutoCombat : MonoBehaviour
     [Header("Target")]
     [SerializeField] private LayerMask enemyLayer;
     private bool isFiring;
-    
-
-
-
     float nextFireTime;
     void Update()
     {
@@ -67,12 +63,12 @@ public class AutoCombat : MonoBehaviour
             Transform shooter = GetShooter(i,plan.projectileCount);
 
             Vector3 spawnPosition = shooter.position+Vector3.up*0.5f+transform.forward*0.3f;
-
-            ProjectileSpec spec =  plan.projectileArchetype.CreateSpec(plan.damage);
+            float finalDamage = stats.Damage * plan.damageMultiplier;
+            ProjectileSpec spec =  plan.projectileArchetype.CreateSpec(finalDamage);
             itemManager.ModifyProjectile(spec);
 
 
-            Projectile projectile = Instantiate(spec.prefab,spawnPosition,Quaternion.identity);
+            Projectile projectile = Instantiate(plan.projectileArchetype.ProjectilePrefab,spawnPosition,Quaternion.identity);
             projectile.Initialize(spec,target);
             yield return new WaitForSeconds(plan.shotSpacing);
         }
