@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class ItemRuntime
+public abstract class ItemRuntime
 {
     public virtual void ModifyProjectile(ProjectileSpec spec)
     {
