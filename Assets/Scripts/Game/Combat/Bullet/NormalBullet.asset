@@ -12,7 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 93fa1f639ef8dac45ab28604876df81c, type: 3}
   m_Name: NormalBullet
   m_EditorClassIdentifier: 
-  projectilePrefab: {fileID: 0}
+  projectilePrefab: {fileID: 6340256600913420290, guid: b50a8222a5f6d4449833a5e26f9ae36c,
+    type: 3}
   baseSpeed: 18
   baseSize: 1
   baseElement: 0
