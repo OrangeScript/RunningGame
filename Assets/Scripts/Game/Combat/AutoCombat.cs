@@ -12,6 +12,7 @@ public class AutoCombat : MonoBehaviour
     [SerializeField] Projectile projectilePrefab;
     [SerializeField] private PlayerStats stats;
     [SerializeField] private ItemManager itemManager;
+    [SerializeField] private ProjectileSpec baseSpec;
 
     [Header("Target")]
     [SerializeField] private LayerMask enemyLayer;
@@ -54,13 +55,8 @@ public class AutoCombat : MonoBehaviour
 
             Vector3 spawnPosition = shooter.position+Vector3.up*0.5f+transform.forward*0.3f;
 
-            ProjectileSpec spec =  new ProjectileSpec
-                {
-                    damage = stats.Damage,
-                    speed = 18f,
-                    sizeMultiplier = 1f,
-                    element = ElementType.None
-                };
+            ProjectileSpec spec =  baseSpec.Clone();
+            spec.damage = stats.Damage;
 
             itemManager.ModifyProjectile(spec);
 
