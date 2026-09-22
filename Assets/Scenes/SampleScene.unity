@@ -3404,10 +3404,9 @@ MonoBehaviour:
   - {fileID: 658404348}
   - {fileID: 416542370}
   upgradePool:
-  - {fileID: 11400000, guid: cedffd52d3cf6ed42bd7ffca41802f1e, type: 2}
-  - {fileID: 11400000, guid: cedffd52d3cf6ed42bd7ffca41802f1e, type: 2}
-  - {fileID: 11400000, guid: cedffd52d3cf6ed42bd7ffca41802f1e, type: 2}
-  - {fileID: 11400000, guid: cedffd52d3cf6ed42bd7ffca41802f1e, type: 2}
+  - {fileID: 11400000, guid: 4aa74b0cc83210345be78507af52ad15, type: 2}
+  - {fileID: 11400000, guid: 5216eef1cf774fa44b768ea8e964080d, type: 2}
+  - {fileID: 11400000, guid: 4aa74b0cc83210345be78507af52ad15, type: 2}
 --- !u!114 &2092479688
 MonoBehaviour:
   m_ObjectHideFlags: 0
