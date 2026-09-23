@@ -11,6 +11,8 @@ public class TestController : MonoBehaviour
 
     [SerializeField]
     private UpgradeData heavyBullet;
+    [SerializeField]
+    private UpgradeData Bounce;
 
     [SerializeField]
     private UpgradeData iceCore;
@@ -27,6 +29,16 @@ public class TestController : MonoBehaviour
         {
             itemManager.Acquire(
                 iceCore
+            );
+        }
+        if (
+            Input.GetKeyDown(
+                KeyCode.E
+            )
+        )
+        {
+            itemManager.Acquire(
+                Bounce
             );
         }
     }

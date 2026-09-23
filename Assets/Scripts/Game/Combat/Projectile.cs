@@ -11,9 +11,13 @@ public class Projectile : MonoBehaviour
     private Enemy target;
     private float damage;
     private float destoryTime;
-    private Vector3 scale;
-    [SerializeField] private Renderer projectileRenderer;
 
+    private int remainingBounces;
+    private float bounceRange;
+    private Vector3 scale;
+    readonly HashSet<Enemy> hitEnemies = new HashSet<Enemy>();
+    [SerializeField] private Renderer projectileRenderer;
+    [SerializeField] LayerMask enemyLayer;
 
     void Awake()
     {
@@ -28,6 +32,8 @@ public class Projectile : MonoBehaviour
         this.target = target;
         ApplyElementVisual(spec.element);
         this.destoryTime = lifeTime + Time.time;
+        remainingBounces = spec.bounce;
+        bounceRange = spec.bounceRange;
     }
 
     private void ApplyElementVisual(ElementType element)
@@ -109,10 +115,93 @@ public class Projectile : MonoBehaviour
 
     void HitTarget()
     {
-        if (target != null)
+        if(target == null)
         {
-            target.TakeDamage(damage);
+            Destroy(gameObject);
+            return;
         }
-        Destroy(gameObject);
+        Enemy hitTarget = target;
+        hitEnemies.Add(hitTarget);
+        hitTarget.TakeDamage(damage);
+
+        if(remainingBounces <= 0)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        Enemy nextTarget = FindBounceTarget();
+        if(nextTarget == null)
+        {
+            Destroy(gameObject);
+            return;
+        }
+        remainingBounces --;
+        target = nextTarget;
     }
+
+    private Enemy FindBounceTarget()
+    {
+        Collider[] hits =
+            Physics.OverlapSphere(
+                transform.position,
+                bounceRange,
+                enemyLayer,
+                QueryTriggerInteraction.Collide
+            );
+
+
+        Enemy nearestEnemy =
+            null;
+
+
+        float nearestDistanceSqr =
+            Mathf.Infinity;
+
+
+        foreach (Collider hit in hits)
+        {
+            Enemy enemy =
+                hit.GetComponentInParent<Enemy>();
+
+
+            if (enemy == null)
+                continue;
+
+
+            if (enemy.IsDead)
+                continue;
+
+
+            // 已经命中过，不再选择
+            if (hitEnemies.Contains(enemy))
+                continue;
+
+
+            Vector3 difference =
+                enemy.AimPosition -
+                transform.position;
+
+
+            float distanceSqr =
+                difference.sqrMagnitude;
+
+
+            if (
+                distanceSqr <
+                nearestDistanceSqr
+            )
+            {
+                nearestDistanceSqr =
+                    distanceSqr;
+
+                nearestEnemy =
+                    enemy;
+            }
+        }
+
+
+        return nearestEnemy;
+    }
+
 }

@@ -13,13 +13,25 @@ public class ProjectileSpec
     public float sizeMultiplier = 1f;
     public ElementType element = ElementType.None;
 
+    public int bounce = 0;
+    public float bounceRange = 6f;
+    public float explosionRadius = 0f;
+    public float explosionDamageMultiplier = 1f;
+    public int pierce = 0;
+
+
     public ProjectileSpec Clone()
     {
         return new ProjectileSpec{
             damage = damage,
             speed = speed,
             sizeMultiplier = sizeMultiplier,
-            element = element
+            element = element,
+            bounce = bounce,
+            bounceRange = bounceRange,
+            pierce = pierce,
+            explosionRadius = explosionRadius,
+            explosionDamageMultiplier = explosionDamageMultiplier
         };
     }
 
