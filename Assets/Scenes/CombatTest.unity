@@ -642,7 +642,7 @@ Camera:
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 1
-  m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}
+  m_BackGroundColor: {r: 0, g: 0, b: 0, a: 1}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
   m_FOVAxisMode: 0
@@ -1021,6 +1021,7 @@ MonoBehaviour:
   heavyBullet: {fileID: 11400000, guid: 5216eef1cf774fa44b768ea8e964080d, type: 2}
   Bounce: {fileID: 11400000, guid: 86928f08c538f934f8d72b01c8b3f902, type: 2}
   iceCore: {fileID: 11400000, guid: 4aa74b0cc83210345be78507af52ad15, type: 2}
+  explosion: {fileID: 11400000, guid: 9dcda51734b1ad644be5846841b72eb5, type: 2}
 --- !u!1001 &1641558121
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1206,8 +1207,8 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
+  m_LocalScale: {x: 2.72, y: 2.72, z: 2.72}
+  m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}

@@ -26,6 +26,8 @@ public class Enemy : MonoBehaviour
    private bool isDead;
    public bool IsDead => isDead;
 
+   [SerializeField] private EnemyHitFeedback hitFeedback;
+
     public Vector3 AimPosition
     {
         get
@@ -91,6 +93,7 @@ public class Enemy : MonoBehaviour
             return;
         }
         currentHealth -= damage;
+        hitFeedback.Play();
         if(currentHealth <= 0)
         {
             Die();

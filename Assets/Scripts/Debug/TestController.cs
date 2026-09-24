@@ -16,6 +16,8 @@ public class TestController : MonoBehaviour
 
     [SerializeField]
     private UpgradeData iceCore;
+    [SerializeField]
+    private UpgradeData explosion;
     private void Update()
     {
         if (Input.GetKeyDown(KeyCode.Q))
@@ -30,6 +32,10 @@ public class TestController : MonoBehaviour
             itemManager.Acquire(
                 iceCore
             );
+        }
+        if(Input.GetKeyDown(KeyCode.R))
+        {
+            itemManager.Acquire(explosion);
         }
         if (
             Input.GetKeyDown(

@@ -17,6 +17,7 @@ public class Projectile : MonoBehaviour
     private float explosionRadius;
 
     private float explosionDamageMultiplier;
+    [SerializeField] private ExplosionVFX explosionVFX;
     private Vector3 scale;
     readonly HashSet<Enemy> hitEnemies = new HashSet<Enemy>();
     [SerializeField] private Renderer projectileRenderer;
@@ -127,6 +128,10 @@ public class Projectile : MonoBehaviour
         if(explosionRadius <= 0f) return;
 
         if(explosionDamageMultiplier <= 0f) return;
+
+        ExplosionVFX vfx = Instantiate(explosionVFX,position,Quaternion.identity);
+
+        vfx.Initialize(explosionRadius);
 
         Collider[] hits = Physics.OverlapSphere(
             position,
