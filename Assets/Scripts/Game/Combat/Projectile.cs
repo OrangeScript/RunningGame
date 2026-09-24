@@ -14,6 +14,9 @@ public class Projectile : MonoBehaviour
 
     private int remainingBounces;
     private float bounceRange;
+    private float explosionRadius;
+
+    private float explosionDamageMultiplier;
     private Vector3 scale;
     readonly HashSet<Enemy> hitEnemies = new HashSet<Enemy>();
     [SerializeField] private Renderer projectileRenderer;
@@ -34,6 +37,11 @@ public class Projectile : MonoBehaviour
         this.destoryTime = lifeTime + Time.time;
         remainingBounces = spec.bounce;
         bounceRange = spec.bounceRange;
+        explosionRadius =
+            spec.explosionRadius;
+
+        explosionDamageMultiplier =
+            spec.explosionDamageMultiplier;
     }
 
     private void ApplyElementVisual(ElementType element)
@@ -113,6 +121,40 @@ public class Projectile : MonoBehaviour
         }
     }
 
+
+    void Explode(Vector3 position)
+    {
+        if(explosionRadius <= 0f) return;
+
+        if(explosionDamageMultiplier <= 0f) return;
+
+        Collider[] hits = Physics.OverlapSphere(
+            position,
+            explosionRadius,
+            enemyLayer,
+            QueryTriggerInteraction.Collide
+        );
+
+        HashSet<Enemy> enemies = new HashSet<Enemy>();
+
+        foreach(Collider hit in hits)
+        {
+            Enemy enemy = hit.GetComponentInParent<Enemy>();
+
+            if(enemy == null) continue;
+
+            if(enemy.IsDead) continue;
+
+            if(!enemies.Add(enemy)) continue;
+
+            float explosionDamage = damage*explosionDamageMultiplier;
+
+            enemy.TakeDamage(explosionDamage);
+        }
+    }
+
+
+
     void HitTarget()
     {
         if(target == null)
@@ -123,6 +165,8 @@ public class Projectile : MonoBehaviour
         Enemy hitTarget = target;
         hitEnemies.Add(hitTarget);
         hitTarget.TakeDamage(damage);
+
+        Explode(hitTarget.AimPosition);
 
         if(remainingBounces <= 0)
         {

@@ -2,17 +2,16 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class ExplosionDefinition : MonoBehaviour
+[CreateAssetMenu(fileName = "ExplosionEffect", menuName = "Roguelike/Effects/Explosion")]
+public class ExplosionDefinition : ItemEffectDefiniton
 {
-    // Start is called before the first frame update
-    void Start()
-    {
-        
-    }
 
-    // Update is called once per frame
-    void Update()
+    [SerializeField] private float radius = 3f;
+    
+    [SerializeField] private float damageMultiplier = 0.5f;
+
+    public override ItemRuntime CreateRuntime()
     {
-        
+        return new ExplosionRuntime(radius,damageMultiplier);
     }
 }

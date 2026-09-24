@@ -2,17 +2,24 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class ExplosionRuntime : MonoBehaviour
+public class ExplosionRuntime : ItemRuntime
 {
-    // Start is called before the first frame update
-    void Start()
+    private readonly float radius;
+    private readonly float damageMultiplier;
+
+    public ExplosionRuntime(float radius, float damageMultiplier)
     {
-        
+        this.radius = radius;
+        this.damageMultiplier = damageMultiplier;
     }
 
-    // Update is called once per frame
-    void Update()
+    public override void ModifyProjectile(ProjectileSpec spec)
     {
-        
+        base.ModifyProjectile(spec);
+        spec.explosionRadius = UnityEngine.Mathf.Max(
+                spec.explosionRadius,
+                radius
+            );
+        spec.explosionDamageMultiplier *= damageMultiplier;
     }
 }
