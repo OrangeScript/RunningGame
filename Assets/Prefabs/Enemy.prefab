@@ -11,7 +11,8 @@ GameObject:
   - component: {fileID: 145571601901218925}
   - component: {fileID: 574551423378646596}
   - component: {fileID: 8695167146782651618}
-  - component: {fileID: 7987543353468910058}
+  - component: {fileID: 3562266399934582832}
+  - component: {fileID: -2469480489255127400}
   m_Layer: 7
   m_Name: Enemy
   m_TagString: Untagged
@@ -76,7 +77,29 @@ MonoBehaviour:
   populationDamage: 1
   attackInterval: 0.8
   aimPoint: {fileID: 0}
---- !u!114 &7987543353468910058
+  visualAnimator: {fileID: 3562266399934582832}
+--- !u!95 &3562266399934582832
+Animator:
+  serializedVersion: 5
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2605326261405977560}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: db90c8dae97455845a3ffd18066e1500, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &-2469480489255127400
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -85,9 +108,12 @@ MonoBehaviour:
   m_GameObject: {fileID: 2605326261405977560}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 001d4c88c84f9d742a8260c5a1646369, type: 3}
+  m_Script: {fileID: 11500000, guid: f02b4b95921cc674fb0e3618bac23617, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  defaultAuraDuration: 4
+  maxAuraAmount: 2
+  baseFrozenDuration: 2
 --- !u!1 &6717950775191897928
 GameObject:
   m_ObjectHideFlags: 0

@@ -9,8 +9,13 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d8d3466cb14273e4783cddb54ee2f32b, type: 3}
-  m_Name: ExplosionEffect
+  m_Script: {fileID: 11500000, guid: 738a0a621f82aa645b051ba0915a676c, type: 3}
+  m_Name: RainCoreEffect
   m_EditorClassIdentifier: 
-  radius: 1
-  damageMultiplier: 0.5
+  interval: 3
+  radius: 12
+  auraAmount: 1
+  auraDuration: 4
+  enemyLayer:
+    serializedVersion: 2
+    m_Bits: 128

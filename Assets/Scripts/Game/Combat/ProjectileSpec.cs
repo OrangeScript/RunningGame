@@ -18,6 +18,7 @@ public class ProjectileSpec
     public float explosionRadius = 0f;
     public float explosionDamageMultiplier = 1f;
     public int pierce = 0;
+    public float pierceRange = 8f;
 
 
     public ProjectileSpec Clone()
@@ -30,6 +31,7 @@ public class ProjectileSpec
             bounce = bounce,
             bounceRange = bounceRange,
             pierce = pierce,
+            pierceRange = pierceRange,
             explosionRadius = explosionRadius,
             explosionDamageMultiplier = explosionDamageMultiplier
         };
@@ -42,5 +44,9 @@ public enum ElementType
     None,
     Ice,
     Fire,
-    Lightning
+    Water,
+    Lightning,
+    Wind,
+    Earth,
+    Nature
 }

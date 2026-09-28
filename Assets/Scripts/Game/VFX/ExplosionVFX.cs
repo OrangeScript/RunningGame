@@ -13,7 +13,7 @@ public class ExplosionVFX : MonoBehaviour
 
     public void Initialize(float radius)
     {
-        targetScale = radius * 2f;
+        targetScale = radius ;
         transform.localScale = Vector3.one * startScale;
     }
 

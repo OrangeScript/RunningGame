@@ -4,6 +4,16 @@ using UnityEngine;
 
 public abstract class ItemRuntime
 {
+
+    public virtual void OnAcquire(ItemManager owner)
+    {
+        
+    }
+
+    public virtual void Tick(float deltaTime)
+    {
+        
+    }
     public virtual void ModifyProjectile(ProjectileSpec spec)
     {
         

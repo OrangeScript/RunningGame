@@ -409,7 +409,13 @@ PrefabInstance:
       propertyPath: moveSpeed
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    - target: {fileID: 8695167146782651618, guid: 8c36d103f0471ec4786b2498bc2e93a3,
+        type: 3}
+      propertyPath: hitFeedback
+      value: 
+      objectReference: {fileID: 0}
+    m_RemovedComponents:
+    - {fileID: 0}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []

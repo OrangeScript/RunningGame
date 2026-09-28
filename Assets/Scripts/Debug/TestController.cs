@@ -18,6 +18,8 @@ public class TestController : MonoBehaviour
     private UpgradeData iceCore;
     [SerializeField]
     private UpgradeData explosion;
+    [SerializeField] 
+    private UpgradeData raincore;
     private void Update()
     {
         if (Input.GetKeyDown(KeyCode.Q))
@@ -26,6 +28,13 @@ public class TestController : MonoBehaviour
                 heavyBullet
             );
         }
+        if (Input.GetKeyDown(KeyCode.S))
+        {
+            itemManager.Acquire(
+                raincore
+            );
+        }
+
 
         if (Input.GetKeyDown(KeyCode.W))
         {

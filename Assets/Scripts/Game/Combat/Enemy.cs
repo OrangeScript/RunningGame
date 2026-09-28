@@ -25,8 +25,10 @@ public class Enemy : MonoBehaviour
    private float nextAttackTime;
    private bool isDead;
    public bool IsDead => isDead;
+   [SerializeField] private Animator visualAnimator;
+   private static readonly int HitTrigger = Animator.StringToHash("Hit");
+   private StatusController statusController;
 
-   [SerializeField] private EnemyHitFeedback hitFeedback;
 
     public Vector3 AimPosition
     {
@@ -46,8 +48,16 @@ public class Enemy : MonoBehaviour
     void Awake()
     {
         currentHealth = maxHealth;
+        statusController = GetComponent<StatusController>();
     }
 
+
+    public ReactionResult ApplyElement(ElementType element,float amount = 1f,float duration = -1f)
+    {
+        if(statusController == null) return ReactionResult.None;
+
+        return statusController.ApplyElement(element,amount,duration);
+    }
     void Start()
     {
         GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
@@ -59,6 +69,14 @@ public class Enemy : MonoBehaviour
     void Update()
     {
         if(isDead) return;
+        if (
+            statusController != null &&
+            statusController.IsFrozen
+        )
+        {
+            return;
+        }
+
         if(player==null || crowd == null) return;
         
         Vector3 direction = player.position - transform.position;
@@ -93,7 +111,13 @@ public class Enemy : MonoBehaviour
             return;
         }
         currentHealth -= damage;
-        hitFeedback.Play();
+
+        if(visualAnimator != null)
+        {
+            Debug.Log("Hit");
+            visualAnimator.SetTrigger("Hit");
+        }
+
         if(currentHealth <= 0)
         {
             Die();

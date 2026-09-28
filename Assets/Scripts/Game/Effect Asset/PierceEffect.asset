@@ -9,8 +9,8 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d8d3466cb14273e4783cddb54ee2f32b, type: 3}
-  m_Name: ExplosionEffect
+  m_Script: {fileID: 11500000, guid: fc34484a58e4bcc44add530b9a986bd7, type: 3}
+  m_Name: PierceEffect
   m_EditorClassIdentifier: 
-  radius: 1
-  damageMultiplier: 0.5
+  extraPierces: 2
+  pierceRange: 8
