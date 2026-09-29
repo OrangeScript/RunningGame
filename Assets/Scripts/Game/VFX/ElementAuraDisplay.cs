@@ -69,6 +69,7 @@ public class ElementAuraDisplay : MonoBehaviour
         foreach(ElementAuraIconUI slot in slots)
         {
             if(slot == null) continue;
+            slot.HideFinished += HandleSlotHideFinished;
             slot.gameObject.SetActive(false);
         }
 
@@ -139,11 +140,32 @@ public class ElementAuraDisplay : MonoBehaviour
             return;
         }
 
-        activeIcons.Remove(element);
         slot.Hide();
+    }
+    private void HandleSlotHideFinished(
+        ElementAuraIconUI slot,
+        ElementType element
+    )
+    {
+        if (
+            activeIcons.TryGetValue(
+                element,
+                out ElementAuraIconUI currentSlot
+            )
+        )
+        {
+            // 确保这个元素现在仍然对应这个Slot
+            if (currentSlot == slot)
+            {
+                activeIcons.Remove(
+                    element
+                );
+            }
+        }
+
+
         RefreshLayout();
     }
-
     ElementAuraIconUI FindFreeSlot()
     {
         foreach(ElementAuraIconUI slot in slots)

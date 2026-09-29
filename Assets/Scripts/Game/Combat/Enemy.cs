@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq.Expressions;
@@ -29,6 +30,11 @@ public class Enemy : MonoBehaviour
    private static readonly int HitTrigger = Animator.StringToHash("Hit");
    private StatusController statusController;
 
+   
+   #region Damage
+   public event Action<float> Damaged;
+
+    #endregion
 
     public Vector3 AimPosition
     {

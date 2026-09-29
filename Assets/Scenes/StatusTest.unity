@@ -2709,7 +2709,6 @@ MonoBehaviour:
   iceCore: {fileID: 11400000, guid: 4aa74b0cc83210345be78507af52ad15, type: 2}
   explosion: {fileID: 11400000, guid: 9dcda51734b1ad644be5846841b72eb5, type: 2}
   raincore: {fileID: 11400000, guid: a1819d1364bb12746aa9a41c09d059a8, type: 2}
-  earthCore: {fileID: 11400000, guid: 1a74dd79d15e0f9428327324f582dd0a, type: 2}
 --- !u!1001 &1641558121
 PrefabInstance:
   m_ObjectHideFlags: 0

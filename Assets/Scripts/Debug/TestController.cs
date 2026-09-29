@@ -20,6 +20,8 @@ public class TestController : MonoBehaviour
     private UpgradeData explosion;
     [SerializeField] 
     private UpgradeData raincore;
+    [SerializeField]
+    private UpgradeData earthCore;
     private void Update()
     {
         if (Input.GetKeyDown(KeyCode.Q))
@@ -34,7 +36,12 @@ public class TestController : MonoBehaviour
                 raincore
             );
         }
-
+        if (Input.GetKeyDown(KeyCode.B))
+        {
+            itemManager.Acquire(
+                earthCore
+            );
+        }
 
         if (Input.GetKeyDown(KeyCode.W))
         {
