@@ -32,7 +32,7 @@ public class Enemy : MonoBehaviour
 
    
    #region Damage
-   public event Action<float> Damaged;
+   public event Action<float,ElementType> Damaged;
 
     #endregion
 
@@ -110,17 +110,16 @@ public class Enemy : MonoBehaviour
         Debug.Log($"Enemy Attack!");
     }
 
-    public void TakeDamage(float damage)
+    public void TakeDamage(float damage,ElementType element)
     {
         if (isDead)
         {
             return;
         }
         currentHealth -= damage;
-
+        Damaged?.Invoke(damage,element);
         if(visualAnimator != null)
         {
-            Debug.Log("Hit");
             visualAnimator.SetTrigger("Hit");
         }
 

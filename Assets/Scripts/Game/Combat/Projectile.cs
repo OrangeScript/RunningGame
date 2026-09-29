@@ -164,7 +164,7 @@ public class Projectile : MonoBehaviour
 
             float explosionDamage = damage*explosionDamageMultiplier;
 
-            enemy.TakeDamage(explosionDamage);
+            enemy.TakeDamage(explosionDamage,element);
         }
     }
 
@@ -190,7 +190,7 @@ public class Projectile : MonoBehaviour
         //元素反应可能影响damage
 
         damage *= reactionResult.damageMultiplier;
-        hitTarget.TakeDamage(damage);
+        hitTarget.TakeDamage(damage,element);
 
         Explode(hitTarget.AimPosition);
 
