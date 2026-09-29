@@ -348,6 +348,9 @@ public class StatusController : MonoBehaviour
                 );
 
                 break;
+            case ElementReactionType.SuperConduct:
+
+                break;
         }
     }
     

@@ -98,6 +98,21 @@ public class ElementReactionSystem : MonoBehaviour
             );
         }
 
+        if (
+            IsPair(
+                existingElement,
+                incomingElement,
+                ElementType.Ice,
+                ElementType.Lightning
+            )
+        )
+        {
+            return new ReactionResult(
+                ElementReactionType.SuperConduct,
+                3f
+            );
+        }
+
 
         return ReactionResult.None;
 

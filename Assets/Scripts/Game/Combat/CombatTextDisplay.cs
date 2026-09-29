@@ -19,6 +19,19 @@ public class CombatTextDisplay : MonoBehaviour
     private Transform popupAnchor;
 
 
+    [Header("Layout")]
+
+    [SerializeField]
+    private float verticalSpacing = 0.3f;
+
+    [SerializeField]
+    private float resetDelay = 0.25f;
+
+
+    private int currentStackIndex;
+
+    private float lastSpawnTime;
+
     void Awake()
     {
         enemy = GetComponent<Enemy>();
@@ -63,12 +76,63 @@ public class CombatTextDisplay : MonoBehaviour
     {
         SpawnText(
             damage.ToString("0.#"),
-            GetElementColor(element),
-            0f
+            GetElementColor(element)
         );
     }
 
 
+    private void SpawnText(
+        string content,
+        Color color
+    )
+    {
+        if (
+            popupPrefab == null ||
+            popupAnchor == null
+        )
+        {
+            return;
+        }
+
+
+        // 隔了一段时间以后重新从最下面开始
+        if (
+            Time.time -
+            lastSpawnTime >
+            resetDelay
+        )
+        {
+            currentStackIndex = 0;
+        }
+
+
+        Vector3 spawnPosition =
+            popupAnchor.position
+            +
+            Vector3.up *
+            verticalSpacing *
+            currentStackIndex;
+
+
+        CombatTextPopup popup =
+            Instantiate(
+                popupPrefab,
+                spawnPosition,
+                Quaternion.identity
+            );
+
+
+        popup.Setup(
+            content,
+            color
+        );
+
+
+        currentStackIndex++;
+
+        lastSpawnTime =
+            Time.time;
+    }
     private void HandleReaction(
         ElementReactionType reaction
     )
@@ -87,8 +151,7 @@ public class CombatTextDisplay : MonoBehaviour
 
         SpawnText(
             text,
-            color,
-            0.4f
+            color
         );
     }
 
@@ -128,6 +191,12 @@ public class CombatTextDisplay : MonoBehaviour
                     0.4f,
                     1f
                 );
+            case ElementReactionType.SuperConduct:
+                return new Color(
+                    1.5f,
+                    0.4f,
+                    1f
+                );
 
             default:
                 return Color.white;
@@ -139,34 +208,6 @@ public class CombatTextDisplay : MonoBehaviour
         return Color.white;
     }
 
-    private void SpawnText(
-        string content,
-        Color color,
-        float heightOffset
-    )
-    {
-        if (
-            popupPrefab == null ||
-            popupAnchor == null
-        )
-        {
-            return;
-        }
-
-
-        CombatTextPopup popup =
-            Instantiate(
-                popupPrefab,
-                popupAnchor.position,
-                Quaternion.identity
-            );
-
-
-        popup.Setup(
-            content,
-            color
-        );
-    }
 
     private string GetReactionText(
         ElementReactionType reaction
