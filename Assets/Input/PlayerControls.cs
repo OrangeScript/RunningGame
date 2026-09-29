@@ -100,6 +100,24 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""interactions"": """",
                     ""initialStateCheck"": true
+                },
+                {
+                    ""name"": ""ActiveSkill1"",
+                    ""type"": ""Button"",
+                    ""id"": ""20cba6d1-b3d4-4b36-ab2c-465a01e3a391"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""ActiveSkill2"",
+                    ""type"": ""Button"",
+                    ""id"": ""d38cbf9f-34ae-430a-8744-b13de59b39f2"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
                 }
             ],
             ""bindings"": [
@@ -168,6 +186,28 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
                     ""action"": ""Move"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": true
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""5442349f-7aa1-4df3-842d-f4165ee65b35"",
+                    ""path"": ""<Keyboard>/space"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""ActiveSkill1"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""d89ebd69-47b8-4c2b-a7e2-fe08be40643f"",
+                    ""path"": ""<Keyboard>/2"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""ActiveSkill2"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
                 }
             ]
         }
@@ -177,6 +217,8 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
         // GamePlay
         m_GamePlay = asset.FindActionMap("GamePlay", throwIfNotFound: true);
         m_GamePlay_Move = m_GamePlay.FindAction("Move", throwIfNotFound: true);
+        m_GamePlay_ActiveSkill1 = m_GamePlay.FindAction("ActiveSkill1", throwIfNotFound: true);
+        m_GamePlay_ActiveSkill2 = m_GamePlay.FindAction("ActiveSkill2", throwIfNotFound: true);
     }
 
     ~@PlayerControls()
@@ -258,6 +300,8 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
     private readonly InputActionMap m_GamePlay;
     private List<IGamePlayActions> m_GamePlayActionsCallbackInterfaces = new List<IGamePlayActions>();
     private readonly InputAction m_GamePlay_Move;
+    private readonly InputAction m_GamePlay_ActiveSkill1;
+    private readonly InputAction m_GamePlay_ActiveSkill2;
     /// <summary>
     /// Provides access to input actions defined in input action map "GamePlay".
     /// </summary>
@@ -273,6 +317,14 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
         /// Provides access to the underlying input action "GamePlay/Move".
         /// </summary>
         public InputAction @Move => m_Wrapper.m_GamePlay_Move;
+        /// <summary>
+        /// Provides access to the underlying input action "GamePlay/ActiveSkill1".
+        /// </summary>
+        public InputAction @ActiveSkill1 => m_Wrapper.m_GamePlay_ActiveSkill1;
+        /// <summary>
+        /// Provides access to the underlying input action "GamePlay/ActiveSkill2".
+        /// </summary>
+        public InputAction @ActiveSkill2 => m_Wrapper.m_GamePlay_ActiveSkill2;
         /// <summary>
         /// Provides access to the underlying input action map instance.
         /// </summary>
@@ -302,6 +354,12 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
             @Move.started += instance.OnMove;
             @Move.performed += instance.OnMove;
             @Move.canceled += instance.OnMove;
+            @ActiveSkill1.started += instance.OnActiveSkill1;
+            @ActiveSkill1.performed += instance.OnActiveSkill1;
+            @ActiveSkill1.canceled += instance.OnActiveSkill1;
+            @ActiveSkill2.started += instance.OnActiveSkill2;
+            @ActiveSkill2.performed += instance.OnActiveSkill2;
+            @ActiveSkill2.canceled += instance.OnActiveSkill2;
         }
 
         /// <summary>
@@ -316,6 +374,12 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
             @Move.started -= instance.OnMove;
             @Move.performed -= instance.OnMove;
             @Move.canceled -= instance.OnMove;
+            @ActiveSkill1.started -= instance.OnActiveSkill1;
+            @ActiveSkill1.performed -= instance.OnActiveSkill1;
+            @ActiveSkill1.canceled -= instance.OnActiveSkill1;
+            @ActiveSkill2.started -= instance.OnActiveSkill2;
+            @ActiveSkill2.performed -= instance.OnActiveSkill2;
+            @ActiveSkill2.canceled -= instance.OnActiveSkill2;
         }
 
         /// <summary>
@@ -363,5 +427,19 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnMove(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "ActiveSkill1" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnActiveSkill1(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "ActiveSkill2" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnActiveSkill2(InputAction.CallbackContext context);
     }
 }

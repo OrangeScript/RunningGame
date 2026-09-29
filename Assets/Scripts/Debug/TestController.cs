@@ -22,12 +22,20 @@ public class TestController : MonoBehaviour
     private UpgradeData raincore;
     [SerializeField]
     private UpgradeData earthCore;
+    [SerializeField]
+    private UpgradeData thunderStrike;
     private void Update()
     {
         if (Input.GetKeyDown(KeyCode.Q))
         {
             itemManager.Acquire(
                 heavyBullet
+            );
+        }
+        if (Input.GetKeyDown(KeyCode.L))
+        {
+            itemManager.Acquire(
+                thunderStrike
             );
         }
         if (Input.GetKeyDown(KeyCode.S))

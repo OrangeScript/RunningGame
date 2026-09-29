@@ -94,7 +94,7 @@ public class ElementReactionSystem : MonoBehaviour
         {
             return new ReactionResult(
                 ElementReactionType.ElectroCharged,
-                1f
+                2f
             );
         }
 

@@ -51,7 +51,26 @@ public class ThunderStrikerRuntime : ActiveAttackItemRuntime
 
     Enemy[] FindEnemies()
     {
-        
-        return null;
+        Collider[] colliders = Physics.OverlapSphere(
+            owner.transform.position,
+                range,
+                enemyLayer,
+                QueryTriggerInteraction.Collide
+        );
+        List<Enemy> enemies = new();
+        foreach(Collider hit in colliders)
+        {
+            Enemy enemy =
+                hit.GetComponentInParent<Enemy>();
+
+
+            if (enemy == null)
+                continue;
+
+            if (enemy.IsDead)
+                continue;
+            enemies.Add(enemy);
+        }
+        return enemies.ToArray();
     }
 }

@@ -28,10 +28,17 @@ public abstract class ActiveAttackItemRuntime : ItemRuntime
         remainingCooldown -= deltaTime;
 
         if(remainingCooldown > 0f) return;
-        if (TryAttack())
-        {
-            remainingCooldown = cooldown;
-        }
+    }
+
+
+    public bool IsReady => remainingCooldown <= 0f;
+    public bool TryActivate()
+    {
+        if(!IsReady) return false;
+        if(!TryAttack()) return false;
+
+        remainingCooldown = cooldown;
+        return true;
     }
 
     protected abstract bool TryAttack();
