@@ -26,6 +26,7 @@ public class Enemy : MonoBehaviour
    private float nextAttackTime;
    private bool isDead;
    public bool IsDead => isDead;
+   [SerializeField] private Transform visualRoot;
    [SerializeField] private Animator visualAnimator;
    private static readonly int HitTrigger = Animator.StringToHash("Hit");
    private StatusController statusController;
@@ -55,14 +56,19 @@ public class Enemy : MonoBehaviour
     {
         currentHealth = maxHealth;
         statusController = GetComponent<StatusController>();
+
+        if (visualRoot == null)
+        {
+            visualRoot = transform.Find("Visual");
+        }
     }
 
 
-    public ReactionResult ApplyElement(ElementType element,float amount = 1f,float duration = -1f)
+    public ReactionResult ApplyElement(ElementType element,float amount = 1f,float duration = -1f,float sourceDamage = 0f)
     {
         if(statusController == null) return ReactionResult.None;
 
-        return statusController.ApplyElement(element,amount,duration);
+        return statusController.ApplyElement(element,amount,duration,sourceDamage);
     }
     void Start()
     {
@@ -141,6 +147,11 @@ public class Enemy : MonoBehaviour
             return;
         Vector3 moveDirection = direction.normalized;
         transform.position += moveDirection*moveSpeed*Time.deltaTime;
-        transform.rotation = Quaternion.LookRotation(moveDirection);
+
+        // Keep gameplay/UI anchors stable by rotating only the model.
+        // Rotating the root makes offset children such as CombatTextAnchor
+        // orbit around the enemy as soon as Play mode starts.
+        Transform facingTarget = visualRoot != null ? visualRoot : transform;
+        facingTarget.rotation = Quaternion.LookRotation(moveDirection);
     }
 }

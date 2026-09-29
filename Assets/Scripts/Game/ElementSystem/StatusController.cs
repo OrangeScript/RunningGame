@@ -33,6 +33,34 @@ public class StatusController : MonoBehaviour
     [Header("Frozen")]
     [SerializeField] private float baseFrozenDuration = 2f;
 
+    [Header("Overload")]
+    [SerializeField] float overloadRadius = 3f;
+    [SerializeField] float overloadDamageMultiplier = 0.5f;
+    [SerializeField] LayerMask enemyLayer;
+
+
+    [Header("Electro Charged")]
+
+    [SerializeField]
+    private float electroDuration = 2f;
+
+    [SerializeField]
+    private float electroTickInterval = 0.5f;
+
+    [SerializeField]
+    private float electroDamageMultiplier = 0.25f;
+
+    [SerializeField]
+    private float electroChainRange = 5f;
+
+
+    private float electroRemainingTime;
+
+    private float electroTickTimer;
+
+    private float electroTickDamage;
+
+
     private readonly Dictionary<ElementType,ElementAura> auras = new();
 
     private readonly List<ElementType> expiredElements = new();
@@ -54,6 +82,118 @@ public class StatusController : MonoBehaviour
     {
         UpdateAuras();
         UpdateFrozen();
+        UpdateElectroCharged();
+    }
+
+    private void UpdateElectroCharged()
+    {
+        if (
+            electroRemainingTime <= 0f
+        )
+        {
+            return;
+        }
+
+
+        electroRemainingTime -=
+            Time.deltaTime;
+
+        electroTickTimer -=
+            Time.deltaTime;
+
+
+        if (electroTickTimer > 0f)
+            return;
+
+
+        electroTickTimer =
+            electroTickInterval;
+
+
+        Enemy self =
+            GetComponent<Enemy>();
+
+
+        if (
+            self != null &&
+            !self.IsDead
+        )
+        {
+            self.TakeDamage(
+                electroTickDamage,
+                ElementType.Lightning
+            );
+        }
+
+
+        ChainElectroDamage();
+    }
+
+    private void ChainElectroDamage()
+    {
+        Collider[] hits =
+            Physics.OverlapSphere(
+                transform.position,
+                electroChainRange,
+                enemyLayer,
+                QueryTriggerInteraction.Collide
+            );
+
+
+        Enemy self =
+            GetComponent<Enemy>();
+
+
+        Enemy nearest =
+            null;
+
+        float nearestSqr =
+            Mathf.Infinity;
+
+
+        foreach (Collider hit in hits)
+        {
+            Enemy enemy =
+                hit.GetComponentInParent<Enemy>();
+
+
+            if (enemy == null)
+                continue;
+
+            if (enemy == self)
+                continue;
+
+            if (enemy.IsDead)
+                continue;
+
+
+            Vector3 difference =
+                enemy.transform.position -
+                transform.position;
+
+
+            float distanceSqr =
+                difference.sqrMagnitude;
+
+
+            if (distanceSqr < nearestSqr)
+            {
+                nearestSqr =
+                    distanceSqr;
+
+                nearest =
+                    enemy;
+            }
+        }
+
+
+        if (nearest != null)
+        {
+            nearest.TakeDamage(
+                electroTickDamage,
+                ElementType.Lightning
+            );
+        }
     }
 
     private void UpdateAuras()
@@ -121,7 +261,8 @@ public class StatusController : MonoBehaviour
     public ReactionResult ApplyElement(
         ElementType incomingElement,
         float amount,
-        float duration
+        float duration,
+        float sourceDamage = 0f
     )
     {
         if(incomingElement == ElementType.None) return ReactionResult.None;
@@ -162,7 +303,7 @@ public class StatusController : MonoBehaviour
             {
                 AuraChanged?.Invoke(reactedElement,existingAura.amount);
             }
-            ExecuteReaction(reaction,reactionAmount);
+            ExecuteReaction(reaction,reactionAmount,sourceDamage);
             ReactionTriggered?.Invoke(reaction.reactionType);
         }
 
@@ -174,13 +315,112 @@ public class StatusController : MonoBehaviour
         return reaction;
     }
 
-    private void ExecuteReaction(ReactionResult reaction,float strength)
+    private void ExecuteReaction(ReactionResult reaction,float strength,float sourceDamage)
     {
         switch (reaction.reactionType)
         {
             case ElementReactionType.Frozen:
                 ApplyFrozen(strength);
                 break;
+            case ElementReactionType.Melt:
+
+                break;
+
+
+            case ElementReactionType.Vaporize:
+
+                break;
+
+
+            case ElementReactionType.Overload:
+
+                ApplyOverload(
+                    sourceDamage
+                );
+
+                break;
+
+
+            case ElementReactionType.ElectroCharged:
+
+                ApplyElectroCharged(
+                    sourceDamage
+                );
+
+                break;
+        }
+    }
+    
+
+    private void ApplyElectroCharged(
+        float sourceDamage
+    )
+    {
+        if (sourceDamage <= 0f)
+            return;
+
+
+        electroRemainingTime =
+            electroDuration;
+
+
+        electroTickTimer =
+            0f;
+
+
+        electroTickDamage =
+            sourceDamage *
+            electroDamageMultiplier;
+    }
+
+
+
+    private void ApplyOverload(
+        float sourceDamage
+    )
+    {
+        if (sourceDamage <= 0f)
+            return;
+
+
+        float overloadDamage =
+            sourceDamage *
+            overloadDamageMultiplier;
+
+
+        Collider[] hits =
+            Physics.OverlapSphere(
+                transform.position,
+                overloadRadius,
+                enemyLayer,
+                QueryTriggerInteraction.Collide
+            );
+
+
+        HashSet<Enemy> damaged =
+            new HashSet<Enemy>();
+
+
+        foreach (Collider hit in hits)
+        {
+            Enemy enemy =
+                hit.GetComponentInParent<Enemy>();
+
+
+            if (enemy == null)
+                continue;
+
+            if (enemy.IsDead)
+                continue;
+
+            if (!damaged.Add(enemy))
+                continue;
+
+
+            enemy.TakeDamage(
+                overloadDamage,
+                ElementType.Fire
+            );
         }
     }
 

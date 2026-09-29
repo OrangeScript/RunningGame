@@ -155,11 +155,11 @@ public class Projectile : MonoBehaviour
         foreach(Collider hit in hits)
         {
             Enemy enemy = hit.GetComponentInParent<Enemy>();
-
+            
             if(enemy == null) continue;
 
             if(enemy.IsDead) continue;
-
+            if(enemy == target) continue;
             if(!enemies.Add(enemy)) continue;
 
             float explosionDamage = damage*explosionDamageMultiplier;
@@ -184,7 +184,7 @@ public class Projectile : MonoBehaviour
         if (element != ElementType.None)
             {
                 reactionResult = hitTarget.ApplyElement(
-                    element
+                    element,sourceDamage:damage
                 );
             }
         //元素反应可能影响damage
