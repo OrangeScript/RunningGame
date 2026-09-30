@@ -1,131 +1,131 @@
-using System.Collections;
-using System.Collections.Generic;
-using TMPro;
-using Unity.Mathematics;
-using Unity.VisualScripting;
+using System;
 using UnityEngine;
 
 public class CrowdManager : MonoBehaviour
 {
-    
-    [Header("Crowd")]
-    [SerializeField] private GameObject unitPrefab;
-    [SerializeField] private Transform crowdRoot;
+    [Header("Population")]
+    [SerializeField] 
+    [Min(0)]
+    private int population = 1;
+    public int Population =>population;
 
-    [SerializeField] private int population = 5;
-    [SerializeField] private TMP_Text populationText;
 
-    [Header("Formation")]
-    [SerializeField] private float spacing = 0.65f;
-    private readonly List<GameObject> units = new List<GameObject>();
-    public int UnitCount => units.Count;
-    public Transform GetUnitTransform(int index)
-    {
-        if(index < 0 || index >= units.Count)
-        {
-            return null;
-        }
+    public event Action<int> PopulationChanged;
 
-        return units[index].transform;
-    }
+    // [Header("Crowd")]
+    // [SerializeField] private GameObject unitPrefab;
+    // [SerializeField] private Transform crowdRoot;
 
-    public int Population => population;
-    void Start()
-    {
-        SetPopulation(population);
-    }
+    // [SerializeField] private TMP_Text populationText;
 
-    public void DamagePopulation(int damage)
-    {
-        if(damage <= 0)
-        {
-            return;
-        }
-        SetPopulation(population - damage);
-    }
+    // [Header("Formation")]
+    // [SerializeField] private float spacing = 0.65f;
+    // private readonly List<GameObject> units = new List<GameObject>();
+    // public int UnitCount => units.Count;
+    // public Transform GetUnitTransform(int index)
+    // {
+    //     if(index < 0 || index >= units.Count)
+    //     {
+    //         return null;
+    //     }
+
+    //     return units[index].transform;
+    // }
+
+    // void Start()
+    // {
+    //     SetPopulation(population);
+    // }
+
+    // public void DamagePopulation(int damage)
+    // {
+    //     if(damage <= 0)
+    //     {
+    //         return;
+    //     }
+    //     SetPopulation(population - damage);
+    // }
 
     public void SetPopulation(int targetPopulation)
     {
         targetPopulation = Mathf.Max(0,targetPopulation);
+        if(targetPopulation == population) return;
         population = targetPopulation;
-        RefreshCrowd();
-        if(population <= 0)
-        {
-            OnCrowdDead();
-        }
+
+        PopulationChanged?.Invoke(population);
     }
 
-    public void OnCrowdDead()
-    {
-        Debug.Log("Game Over!");
-        RunnerController runner = GetComponent<RunnerController>();
-        if (runner != null)
-        {
-            runner.enabled = false;
-        }
-    }
+    // public void OnCrowdDead()
+    // {
+    //     Debug.Log("Game Over!");
+    //     RunnerController runner = GetComponent<RunnerController>();
+    //     if (runner != null)
+    //     {
+    //         runner.enabled = false;
+    //     }
+    // }
 
-    void RefreshCrowd()
-    {
-        AdjustUnitCount();
-        UpdateFormation();
-        UpdatePopulationUI();
-    }
+    // void RefreshCrowd()
+    // {
+    //     AdjustUnitCount();
+    //     UpdateFormation();
+    //     UpdatePopulationUI();
+    // }
 
-    private void UpdatePopulationUI()
-    {
-        if(populationText == null) return;
-        populationText.text = population.ToString();
-    }
-    private void AdjustUnitCount()
-    {
-        while(units.Count < population)
-        {
-            GameObject unit = Instantiate(unitPrefab,crowdRoot);
-            units.Add(unit);
-        }
+    // private void UpdatePopulationUI()
+    // {
+    //     if(populationText == null) return;
+    //     populationText.text = population.ToString();
+    // }
+    // private void AdjustUnitCount()
+    // {
+    //     while(units.Count < population)
+    //     {
+    //         GameObject unit = Instantiate(unitPrefab,crowdRoot);
+    //         units.Add(unit);
+    //     }
 
-        while(units.Count > population)
-        {
-            int lastIndex = units.Count - 1;
-            GameObject unit = units[lastIndex];
-            units.RemoveAt(lastIndex);
-            Destroy(unit);
-        }
-    }
+    //     while(units.Count > population)
+    //     {
+    //         int lastIndex = units.Count - 1;
+    //         GameObject unit = units[lastIndex];
+    //         units.RemoveAt(lastIndex);
+    //         Destroy(unit);
+    //     }
+    // }
 
-    private void UpdateFormation()
-    {
-        int count = units.Count;
-        if(count == 0) return;
+    // private void UpdateFormation()
+    // {
+    //     int count = units.Count;
+    //     if(count == 0) return;
 
-        int columns = Mathf.CeilToInt(Mathf.Sqrt(count));
+    //     int columns = Mathf.CeilToInt(Mathf.Sqrt(count));
 
-        for (int i = 0; i < count; i++)
-        {
-            int row =
-                i / columns;
+    //     for (int i = 0; i < count; i++)
+    //     {
+    //         int row =
+    //             i / columns;
 
-            int column =
-                i % columns;
+    //         int column =
+    //             i % columns;
 
-            float x =
-                (
-                    column -
-                    (columns - 1) * 0.5f
-                ) * spacing;
+    //         float x =
+    //             (
+    //                 column -
+    //                 (columns - 1) * 0.5f
+    //             ) * spacing;
 
-            float z =
-                -row * spacing;
+    //         float z =
+    //             -row * spacing;
 
-            units[i].transform.localPosition =
-                new Vector3(
-                    x,
-                    0.5f,
-                    z
-                );
-        }    
-    }
+    //         units[i].transform.localPosition =
+    //             new Vector3(
+    //                 x,
+    //                 0.5f,
+    //                 z
+    //             );
+    //     }    
+    // }
 
     public void AddPopulation(int amount)
     {

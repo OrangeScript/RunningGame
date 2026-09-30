@@ -229,6 +229,8 @@ public class CombatTextDisplay : MonoBehaviour
 
             case ElementReactionType.ElectroCharged:
                 return "感电";
+            case ElementReactionType.SuperConduct:
+                return "超导";
 
             default:
                 return reaction.ToString();

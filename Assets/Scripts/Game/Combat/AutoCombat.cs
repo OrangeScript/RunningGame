@@ -7,6 +7,7 @@ using UnityEngine.AI;
 public class AutoCombat : MonoBehaviour
 {
     [Header("References")]
+    [SerializeField] CrowdVisualizer crowdVisualizer;
     [SerializeField]CrowdManager crowd;
     [SerializeField] Transform firePoint;
     [SerializeField] private PlayerStats stats;
@@ -60,7 +61,7 @@ public class AutoCombat : MonoBehaviour
 
         for(int i = 0; i< plan.projectileCount; i++)
         {
-            Transform shooter = GetShooter(i,plan.projectileCount);
+            Transform shooter = GetShooter(i);
 
             Vector3 spawnPosition = shooter.position+Vector3.up*0.5f+transform.forward*0.3f;
             float finalDamage = stats.Damage * plan.damageMultiplier;
@@ -78,22 +79,16 @@ public class AutoCombat : MonoBehaviour
 
 
 
-    Transform GetShooter(int shootIndex,
-                        int shootCount)
+    Transform GetShooter(int index)
     {
-        if(crowd.UnitCount <= 0)
+        if(crowdVisualizer.VisualUnitCount <= 0)
             return firePoint;
         
-        if(shootCount <= 1)
-        {
-            int middle = crowd.UnitCount / 2;
-            return crowd.GetUnitTransform(middle);
-        }
+        int visualIndex = index % crowdVisualizer.VisualUnitCount;
 
-        float t = shootIndex / (float)(shootCount - 1);
-        int unitIndex = Mathf.RoundToInt(t * (crowd.UnitCount - 1));
+        Transform unit = crowdVisualizer.GetUnitTransform(visualIndex);
 
-        return crowd.GetUnitTransform(unitIndex);
+        return unit;
 
     }
 
