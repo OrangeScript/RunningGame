@@ -537,7 +537,7 @@ PrefabInstance:
     - target: {fileID: 6523759433596417909, guid: c086e0aa7dc892c4c9e43b68da6ebd50,
         type: 3}
       propertyPath: population
-      value: 20
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 7520446771320021235, guid: c086e0aa7dc892c4c9e43b68da6ebd50,
         type: 3}
@@ -853,7 +853,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   crowdManager: {fileID: 1959216382}
   itemManager: {fileID: 1959216385}
-  giantUpgrade: {fileID: 0}
+  giantUpgrade: {fileID: 11400000, guid: f7ec03fde78a9254bad328d4f02bf599, type: 2}
 --- !u!4 &2121325280
 Transform:
   m_ObjectHideFlags: 0
