@@ -1254,12 +1254,32 @@ MonoBehaviour:
     type: 3}
   m_PrefabInstance: {fileID: 1641558121}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_GameObject: {fileID: 1548444772}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7ce19cb70ec66714984a52b56eb1f7cd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!1 &1548444772 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 4890985756179447387, guid: c086e0aa7dc892c4c9e43b68da6ebd50,
+    type: 3}
+  m_PrefabInstance: {fileID: 1641558121}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1548444780
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1548444772}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 718a558ee62b2804bb5196e0c4b6d170, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  playerInput: {fileID: 0}
+  itemManager: {fileID: 0}
 --- !u!1001 &1601451444
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1599,6 +1619,7 @@ MonoBehaviour:
   explosion: {fileID: 11400000, guid: 9dcda51734b1ad644be5846841b72eb5, type: 2}
   raincore: {fileID: 11400000, guid: a1819d1364bb12746aa9a41c09d059a8, type: 2}
   earthCore: {fileID: 11400000, guid: 1a74dd79d15e0f9428327324f582dd0a, type: 2}
+  thunderStrike: {fileID: 11400000, guid: 86f639c8abf77cc4a9a4d6c27bd863bf, type: 2}
 --- !u!1001 &1641558121
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1681,7 +1702,11 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 4890985756179447387, guid: c086e0aa7dc892c4c9e43b68da6ebd50,
+        type: 3}
+      insertIndex: 3
+      addedObject: {fileID: 1548444780}
   m_SourcePrefab: {fileID: 100100000, guid: c086e0aa7dc892c4c9e43b68da6ebd50, type: 3}
 --- !u!1 &1648845102
 GameObject:

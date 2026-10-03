@@ -112,7 +112,7 @@ public class Enemy : MonoBehaviour
     {
         if(Time.time < nextAttackTime) return;
         nextAttackTime = Time.time + attackInterval;
-        crowd.DamagePopulation(populationDamage);
+        // crowd.DamagePopulation(populationDamage);
         Debug.Log($"Enemy Attack!");
     }
 

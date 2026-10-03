@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e1ecbfdde894a8743bc2de4f4e0369ab, type: 3}
   m_Name: Upgrade_ThunderStrike
   m_EditorClassIdentifier: 
-  upgradeName: 
-  description: 
-  icon: {fileID: 0}
-  effect: {fileID: 0}
+  upgradeName: "\u96F7\u66B4"
+  description: "\u7D2F\u7D2F"
+  icon: {fileID: 10911, guid: 0000000000000000f000000000000000, type: 0}
+  effect: {fileID: 11400000, guid: 3f15e88c8b6bbf24c8dc92dea7a1d973, type: 2}

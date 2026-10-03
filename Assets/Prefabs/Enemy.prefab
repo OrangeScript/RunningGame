@@ -301,6 +301,8 @@ MonoBehaviour:
   popupPrefab: {fileID: 3410268752090037634, guid: 16c3b1cebd955c34e8ed0d34b83c6193,
     type: 3}
   popupAnchor: {fileID: 6531031054040708664}
+  verticalSpacing: 0.3
+  resetDelay: 0.25
 --- !u!114 &8695167146782651618
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -319,6 +321,7 @@ MonoBehaviour:
   populationDamage: 1
   attackInterval: 0.8
   aimPoint: {fileID: 0}
+  visualRoot: {fileID: 0}
   visualAnimator: {fileID: 0}
 --- !u!114 &-2469480489255127400
 MonoBehaviour:
@@ -335,6 +338,15 @@ MonoBehaviour:
   defaultAuraDuration: 4
   maxAuraAmount: 2
   baseFrozenDuration: 2
+  overloadRadius: 3
+  overloadDamageMultiplier: 0.5
+  enemyLayer:
+    serializedVersion: 2
+    m_Bits: 128
+  electroDuration: 2
+  electroTickInterval: 0.5
+  electroDamageMultiplier: 0.25
+  electroChainRange: 5
 --- !u!114 &3351696001740036369
 MonoBehaviour:
   m_ObjectHideFlags: 0

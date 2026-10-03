@@ -12,10 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9e0041613e891744896d4d97aae77d3, type: 3}
   m_Name: ThunderStrikeEffect
   m_EditorClassIdentifier: 
-  cooldown: 4
+  cooldown: 2
   range: 15
   damage: 10
-  auraAmount: 1
+  auraAmount: 2
   enemyLayer:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 128
