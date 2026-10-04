@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -16,6 +17,8 @@ public class RunnerController : MonoBehaviour
 
     private CharacterController controller;
     private float moveInput;
+
+    private bool forwardMovementEnabled = true;
 
     void Awake()
     {
@@ -41,8 +44,8 @@ public class RunnerController : MonoBehaviour
     }
     void HandleMovement()
     {
-
-        Vector3 movement = new Vector3(moveInput* horizontalSpeed,-2f,forwardSpeed);
+        float currentForwardSpeed = forwardMovementEnabled ? forwardSpeed : 0f;
+        Vector3 movement = new Vector3(moveInput* horizontalSpeed,-2f,currentForwardSpeed);
 
         controller.Move(movement*Time.deltaTime);
 
@@ -52,4 +55,8 @@ public class RunnerController : MonoBehaviour
         transform.position = position;
     }
 
+    internal void SetForwardMovementEnabled(bool enableForwardMovement)
+    {
+        forwardMovementEnabled = enableForwardMovement;
+    }
 }

@@ -34,6 +34,8 @@ public class Enemy : MonoBehaviour
    
    #region Damage
    public event Action<float,ElementType> Damaged;
+   public event Action<Enemy> Died;
+   
 
     #endregion
 
@@ -137,7 +139,9 @@ public class Enemy : MonoBehaviour
 
     void Die()
     {
+        if(isDead) return;
         isDead = true;
+        Died?.Invoke(this);
         Destroy(gameObject);
     }
 
