@@ -44,15 +44,52 @@ public class RunnerController : MonoBehaviour
     }
     void HandleMovement()
     {
-        float currentForwardSpeed = forwardMovementEnabled ? forwardSpeed : 0f;
-        Vector3 movement = new Vector3(moveInput* horizontalSpeed,-2f,currentForwardSpeed);
+        float currentForwardSpeed =
+            forwardMovementEnabled
+                ? forwardSpeed
+                : 0f;
 
-        controller.Move(movement*Time.deltaTime);
 
-        Vector3 position = transform.position;
+        // 玩家这一帧本来想横向移动多少
+        float horizontalDelta =
+            moveInput *
+            horizontalSpeed *
+            Time.deltaTime;
 
-        position.x = Mathf.Clamp(position.x,-xLimit,xLimit);
-        transform.position = position;
+
+        // 预计到达的位置
+        float targetX =
+            transform.position.x +
+            horizontalDelta;
+
+
+        // 先把目标位置限制在道路内
+        targetX =
+            Mathf.Clamp(
+                targetX,
+                -xLimit,
+                xLimit
+            );
+
+
+        // 最终这一帧实际允许移动多少
+        float finalHorizontalDelta =
+            targetX -
+            transform.position.x;
+
+
+        Vector3 displacement =
+            new Vector3(
+                finalHorizontalDelta,
+                -2f * Time.deltaTime,
+                currentForwardSpeed *
+                Time.deltaTime
+            );
+
+
+        controller.Move(
+            displacement
+        );
     }
 
     internal void SetForwardMovementEnabled(bool enableForwardMovement)
