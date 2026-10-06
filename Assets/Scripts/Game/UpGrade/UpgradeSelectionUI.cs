@@ -10,10 +10,10 @@ public class UpgradeSelectionUI : MonoBehaviour
     [SerializeField] private GameObject panel;
     [SerializeField] private UpgradeCardUI[] cards;
 
-    [Header("UpgradePool")]
-    [SerializeField] List<UpgradeData> upgradePool;
+    // [Header("UpgradePool")]
+    // [SerializeField] List<UpgradeData> upgradePool;
     private bool isOpen;
-    private Action<UpgradeData> OnUpgradeSelected;
+    private Action<UpgradeData> OnSelected;
 
     private void Awake()
     {
@@ -21,43 +21,56 @@ public class UpgradeSelectionUI : MonoBehaviour
     }
 
 
-    public void Show(Action<UpgradeData> callback)
+    public void Show(UpgradeData[] options,Action<UpgradeData> callback)
     {
         if(isOpen) return;
         isOpen = true;
-        OnUpgradeSelected = callback;
-        Time.timeScale = 0f;
+        OnSelected = callback;
         panel.SetActive(true);
-
-        List<UpgradeData> options = GetRandomOptions(3);
-
-        for(int i = 0; i< cards.Length; i++)
+        int count =
+            Mathf.Min(
+                cards.Length,
+                options.Length
+            );
+        for(int i = 0; i< count; i++)
         {
+            cards[i].gameObject.SetActive(true);
             cards[i].Setup(options[i],HandleSelected);
         }
     }
 
     private void HandleSelected(UpgradeData selected)
     {
-        OnUpgradeSelected?.Invoke(selected);
-        panel.SetActive(false);
-        Time.timeScale = 1f;
+        if(!isOpen) return;
         isOpen = false;
-        OnUpgradeSelected = null;
+        panel.SetActive(false);
+
+        Action<UpgradeData>
+            callback =
+                OnSelected;
+
+
+        OnSelected =
+            null;
+
+
+        callback?.Invoke(
+            selected
+        );
     }
 
-    private List<UpgradeData> GetRandomOptions(int count)
-    {
-        List<UpgradeData> tempPool = new List<UpgradeData>(upgradePool);
+    // private List<UpgradeData> GetRandomOptions(int count)
+    // {
+    //     List<UpgradeData> tempPool = new List<UpgradeData>(upgradePool);
 
-        List<UpgradeData> result = new List<UpgradeData>();
+    //     List<UpgradeData> result = new List<UpgradeData>();
 
-        for(int i = 0; i< count; i++)
-        {
-            int randomIndex = UnityEngine.Random.Range(0,tempPool.Count);
-            result.Add(tempPool[randomIndex]);
-            tempPool.RemoveAt(randomIndex);
-        }
-        return result;
-    }
+    //     for(int i = 0; i< count; i++)
+    //     {
+    //         int randomIndex = UnityEngine.Random.Range(0,tempPool.Count);
+    //         result.Add(tempPool[randomIndex]);
+    //         tempPool.RemoveAt(randomIndex);
+    //     }
+    //     return result;
+    // }
 }

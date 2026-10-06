@@ -2,10 +2,11 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq.Expressions;
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.Scripting.APIUpdating;
 
-public class Enemy : MonoBehaviour
+public class Enemy : NetworkBehaviour
 {
     
    [Header("Health")]
@@ -20,16 +21,25 @@ public class Enemy : MonoBehaviour
 
    [Header("Target")]
    [SerializeField] private Transform aimPoint;
-   private float currentHealth;
    private Transform player;
    private CrowdManager crowd;
    private float nextAttackTime;
-   private bool isDead;
-   public bool IsDead => isDead;
    [SerializeField] private Transform visualRoot;
    [SerializeField] private Animator visualAnimator;
    private static readonly int HitTrigger = Animator.StringToHash("Hit");
    private StatusController statusController;
+
+   private NetworkVariable<float>
+        currentHealth =
+            new NetworkVariable<float>();
+
+    private NetworkVariable<bool>
+        dead =
+            new NetworkVariable<bool>();
+
+
+    public bool IsDead =>
+    dead.Value;
 
    
    #region Damage
@@ -38,6 +48,8 @@ public class Enemy : MonoBehaviour
    
 
     #endregion
+
+
 
     public Vector3 AimPosition
     {
@@ -54,9 +66,16 @@ public class Enemy : MonoBehaviour
         }
     }
 
+    public override void OnNetworkSpawn()
+    {
+        if (IsServer)
+        {
+            currentHealth.Value = maxHealth;
+        }
+    }
+
     void Awake()
     {
-        currentHealth = maxHealth;
         statusController = GetComponent<StatusController>();
 
         if (visualRoot == null)
@@ -74,15 +93,72 @@ public class Enemy : MonoBehaviour
     }
     void Start()
     {
-        GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
-        player = playerObj.transform;
-        crowd = playerObj.GetComponent<CrowdManager>();
+        FindNearestPlayer();
     }
 
+    private void FindNearestPlayer()
+    {
+        Transform nearest =
+            null;
+
+        CrowdManager nearestCrowd =
+            null;
+
+        float nearestSqr =
+            Mathf.Infinity;
+
+
+        foreach (
+            var pair in
+            NetworkManager.Singleton
+                .ConnectedClients
+        )
+        {
+            NetworkObject playerObject =
+                pair.Value.PlayerObject;
+
+
+            if (playerObject == null)
+                continue;
+
+
+            float sqr =
+                (
+                    playerObject.transform.position -
+                    transform.position
+                ).sqrMagnitude;
+
+
+            if (sqr >= nearestSqr)
+                continue;
+
+
+            nearestSqr =
+                sqr;
+
+
+            nearest =
+                playerObject.transform;
+
+
+            nearestCrowd =
+                playerObject.GetComponent<
+                    CrowdManager
+                >();
+        }
+
+
+        player =
+            nearest;
+
+        crowd =
+            nearestCrowd;
+    }
 
     void Update()
     {
-        if(isDead) return;
+        if(!IsServer) return;
+        if(dead.Value) return;
         if (
             statusController != null &&
             statusController.IsFrozen
@@ -120,29 +196,39 @@ public class Enemy : MonoBehaviour
 
     public void TakeDamage(float damage,ElementType element)
     {
-        if (isDead)
+        if (dead.Value)
         {
             return;
         }
-        currentHealth -= damage;
-        Damaged?.Invoke(damage,element);
-        if(visualAnimator != null)
-        {
-            visualAnimator.SetTrigger("Hit");
-        }
+        currentHealth.Value -= damage;
+        DamageFeedbackClientRpc(damage,element);
 
-        if(currentHealth <= 0)
+        
+
+        if(currentHealth.Value <= 0)
         {
             Die();
         }
     }
 
+
+    [ClientRpc]
+    private void DamageFeedbackClientRpc(float damage, ElementType element)
+    {
+        Damaged?.Invoke(damage,element);
+        if(visualAnimator != null)
+        {
+            visualAnimator.SetTrigger("Hit");
+        }
+    }
+
     void Die()
     {
-        if(isDead) return;
-        isDead = true;
+        if(!IsServer) return;
+        if(dead.Value) return;
+        dead.Value = true;
         Died?.Invoke(this);
-        Destroy(gameObject);
+        NetworkObject.Despawn(true);
     }
 
     void MoveTowardsPlayer(Vector3 direction)

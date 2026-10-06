@@ -1,11 +1,12 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 [RequireComponent(typeof(CharacterController))]
-public class RunnerController : MonoBehaviour
+public class RunnerController : NetworkBehaviour
 {
 
     [Header("Movement")]
@@ -16,15 +17,70 @@ public class RunnerController : MonoBehaviour
     [SerializeField] private float xLimit = 4f;
 
     private CharacterController controller;
-    private float moveInput;
+    private PlayerInput playerInput;
+    private float serverMoveInput;
 
-    private bool forwardMovementEnabled = true;
 
     void Awake()
     {
         controller = GetComponent<CharacterController>();
+        playerInput = GetComponent<PlayerInput>();
+
+        playerInput.enabled = false;
+        controller.enabled = false;
+
     }
 
+    public override void OnNetworkSpawn()
+    {
+        playerInput.enabled = IsOwner;
+        controller.enabled = IsServer;
+        if (IsServer)
+        {
+            // 防止Host和Client出生完全重叠
+            transform.position +=
+                Vector3.right *
+                (float)OwnerClientId *
+                0.15f;
+        }
+
+
+        if (IsOwner)
+        {
+            CameraFollow cameraFollow =
+                Camera.main != null
+                    ? Camera.main
+                        .GetComponent<CameraFollow>()
+                    : null;
+
+
+            if (cameraFollow != null)
+            {
+                cameraFollow.SetTarget(
+                    transform
+                );
+            }
+
+
+            PopulationUI populationUI =
+                FindFirstObjectByType<
+                    PopulationUI
+                >();
+
+
+            if (populationUI != null)
+            {
+                populationUI.Bind(
+                    GetComponent<CrowdManager>()
+                );
+            }
+        }
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        playerInput.enabled = false;
+    }
     // Start is called before the first frame update
     void Start()
     {
@@ -34,25 +90,35 @@ public class RunnerController : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        if(!IsServer) return;
+        if(!controller.enabled) return;
         HandleMovement();
     }
 
 
     void OnMove(InputValue value)
     {
-        moveInput = value.Get<float>();
+        if(!IsOwner) return;
+        float moveInput = value.Get<float>();
+        SubmitMoveInputServerRpc(moveInput);
     }
+
+    [ServerRpc]
+    private void SubmitMoveInputServerRpc(float input)
+    {
+        serverMoveInput = Mathf.Clamp(input,-1f,1f);
+    }
+
+
     void HandleMovement()
     {
-        float currentForwardSpeed =
-            forwardMovementEnabled
-                ? forwardSpeed
-                : 0f;
+        bool forwardEnabled = GameManager.instance.state == RunState.Running;
+        float zSpeed = forwardEnabled? forwardSpeed:0f;
 
 
         // 玩家这一帧本来想横向移动多少
         float horizontalDelta =
-            moveInput *
+            serverMoveInput *
             horizontalSpeed *
             Time.deltaTime;
 
@@ -82,7 +148,7 @@ public class RunnerController : MonoBehaviour
             new Vector3(
                 finalHorizontalDelta,
                 -2f * Time.deltaTime,
-                currentForwardSpeed *
+                zSpeed *
                 Time.deltaTime
             );
 
@@ -92,8 +158,4 @@ public class RunnerController : MonoBehaviour
         );
     }
 
-    internal void SetForwardMovementEnabled(bool enableForwardMovement)
-    {
-        forwardMovementEnabled = enableForwardMovement;
-    }
 }

@@ -1,10 +1,11 @@
 using System.Collections;
 using System.Collections.Generic;
+using Unity.Netcode;
 using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.AI;
 
-public class AutoCombat : MonoBehaviour
+public class AutoCombat : NetworkBehaviour
 {
     [Header("References")]
     [SerializeField] CrowdVisualizer crowdVisualizer;
@@ -20,6 +21,7 @@ public class AutoCombat : MonoBehaviour
     float nextFireTime;
     void Update()
     {
+        if(!IsServer) return;
         if(crowd == null) return;
         if(crowd.Population <= 0) return;
         if(stats == null) return;
@@ -31,7 +33,7 @@ public class AutoCombat : MonoBehaviour
 
         Enemy target = FindNearestEnemy(plan.attackRange);
         if(target == null)  return;
-        nextFireTime = Time.time + stats.AttackInterval;
+        nextFireTime = Time.time + plan.attackInterval;
         Fire(target,plan);
     }
 

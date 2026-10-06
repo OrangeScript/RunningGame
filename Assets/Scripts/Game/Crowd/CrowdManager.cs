@@ -1,13 +1,20 @@
 using System;
+using Unity.Netcode;
 using UnityEngine;
 
-public class CrowdManager : MonoBehaviour
+public class CrowdManager : NetworkBehaviour
 {
     [Header("Population")]
     [SerializeField] 
     [Min(0)]
-    private int population = 1;
-    public int Population =>population;
+    private int startingPopulation = 1;
+
+    private NetworkVariable<int> population = new NetworkVariable<int>(
+        1,NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
+    public int Population =>population.Value;
 
 
     public event Action<int> PopulationChanged;
@@ -46,13 +53,27 @@ public class CrowdManager : MonoBehaviour
     //     SetPopulation(population - damage);
     // }
 
-    public void SetPopulation(int targetPopulation)
+    public override void OnNetworkSpawn()
     {
-        targetPopulation = Mathf.Max(0,targetPopulation);
-        if(targetPopulation == population) return;
-        population = targetPopulation;
+        population.OnValueChanged += HandlePopulationChanged;
+        PopulationChanged?.Invoke(population.Value);
+    }
 
-        PopulationChanged?.Invoke(population);
+    public override void OnNetworkDespawn()
+    {
+        population.OnValueChanged -= HandlePopulationChanged;
+    }
+
+    private void HandlePopulationChanged(int previousValue,
+        int newValue)
+    {
+        PopulationChanged?.Invoke(newValue);
+    }
+
+    public void SetPopulation(int value)
+    {
+        if(!IsServer) return;
+        population.Value = Mathf.Max(0,value);
     }
 
     // public void OnCrowdDead()
@@ -129,28 +150,36 @@ public class CrowdManager : MonoBehaviour
 
     public void AddPopulation(int amount)
     {
-        SetPopulation(population+amount);
+        if (!IsServer)
+            return;
+        SetPopulation(Population+amount);
     }
 
     public void MultiplyPopulation(int multiplier)
     {
-        SetPopulation(population*multiplier);
+        if (!IsServer)
+            return;
+        SetPopulation(population.Value*multiplier);
     }
 
     public void SubtractPopulation(int amount)
     {
-        SetPopulation(population - amount);
+        if (!IsServer)
+            return;
+        SetPopulation(population.Value - amount);
     }
 
     public void DividePopulation(int divisor)
     {
+        if (!IsServer)
+            return;
         if(divisor <= 0)
         {
             return;
         }
         else
         {
-            SetPopulation(population / divisor);
+            SetPopulation(population.Value / divisor);
         }
     }
 

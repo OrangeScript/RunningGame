@@ -1,9 +1,10 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Unity.Netcode;
 using UnityEngine;
 
-public class StatusController : MonoBehaviour
+public class StatusController : NetworkBehaviour
 {
 
     private class ElementAura
@@ -66,8 +67,14 @@ public class StatusController : MonoBehaviour
     private readonly List<ElementType> expiredElements = new();
 
     private float frozenRemainingTime;
-    public bool IsFrozen => frozenRemainingTime > 0f;
 
+    private NetworkVariable<bool>
+        frozenNetwork =
+            new NetworkVariable<bool>();
+
+
+    public bool IsFrozen =>
+        frozenNetwork.Value;
 
 
 
@@ -80,6 +87,7 @@ public class StatusController : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        if(!IsServer) return;
         UpdateAuras();
         UpdateFrozen();
         UpdateElectroCharged();
@@ -251,10 +259,10 @@ public class StatusController : MonoBehaviour
             Time.deltaTime;
 
 
-        if (frozenRemainingTime < 0f)
+        if (frozenRemainingTime < 0f && frozenNetwork.Value)
         {
             frozenRemainingTime = 0f;
-            FrozenChanged?.Invoke(false);
+            frozenNetwork.Value = false;
         }
     }
 
@@ -265,6 +273,7 @@ public class StatusController : MonoBehaviour
         float sourceDamage = 0f
     )
     {
+        if(!IsServer) return ReactionResult.None;
         if(incomingElement == ElementType.None) return ReactionResult.None;
         if(amount <= 0f) return ReactionResult.None;
         if(duration <= 0f) duration = defaultAuraDuration;
@@ -429,16 +438,12 @@ public class StatusController : MonoBehaviour
 
     private void ApplyFrozen(float strength)
     {
-        bool wasFrozen = IsFrozen;
+        if(!IsServer) return;
         float duration = baseFrozenDuration * strength;
 
         frozenRemainingTime = Mathf.Max(frozenRemainingTime,duration);
 
-        if (!wasFrozen)
-        {
-            FrozenChanged?.Invoke(true);
-        }
-        Debug.Log("Frozen!");
+        frozenNetwork.Value = true;
     }
 
     //TODO: 万一和剩下的元素还能反应呢

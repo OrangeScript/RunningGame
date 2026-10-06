@@ -6,6 +6,8 @@ using UnityEngine;
 [CreateAssetMenu(fileName ="UpgradeData", menuName ="Roguelike/Upgrade Data")]
 public class UpgradeData : ScriptableObject
 {
+    [SerializeField] private int networkId;
+    public int NetworkId => networkId;
     [SerializeField]private string upgradeName;
     [TextArea][SerializeField] private string description;
     [SerializeField] private Sprite icon;

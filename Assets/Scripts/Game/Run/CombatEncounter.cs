@@ -1,12 +1,13 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Unity.Netcode;
 using Unity.VisualScripting;
 using UnityEngine;
 
 
 [RequireComponent(typeof(BoxCollider))]
-public class CombatEncounter : MonoBehaviour
+public class CombatEncounter : NetworkBehaviour
 {
 
     [Header("References")]
@@ -41,7 +42,11 @@ public class CombatEncounter : MonoBehaviour
 
     private bool finished;
 
-
+    private NetworkVariable<bool>
+        barriersActive =
+            new NetworkVariable<bool>(
+                false
+            );
     public bool IsStarted =>
         started;
 
@@ -57,7 +62,28 @@ public class CombatEncounter : MonoBehaviour
         trigger.isTrigger = true;
     }
 
-    
+    public override void OnNetworkSpawn()
+    {
+        barriersActive.OnValueChanged += HandleBarrierChanged;
+        
+    }
+
+    private void HandleBarrierChanged(bool previousValue, bool newValue)
+    {
+        foreach (
+            GameObject barrier
+            in barriers
+        )
+        {
+            if (barrier == null)
+                continue;
+
+
+            barrier.SetActive(
+                newValue
+            );
+        }
+    }
 
     public void FinishEncounter()
     {
@@ -84,19 +110,9 @@ public class CombatEncounter : MonoBehaviour
         bool active
     )
     {
-        foreach (
-            GameObject barrier
-            in barriers
-        )
-        {
-            if (barrier == null)
-                continue;
-
-
-            barrier.SetActive(
-                active
-            );
-        }
+        if(!IsServer) return;
+        barriersActive.Value = active;
+        
     }
 
 
@@ -130,6 +146,7 @@ public class CombatEncounter : MonoBehaviour
         Collider other
     )
     {
+        if(!IsServer) return;
         if (started)
             return;
 
@@ -225,7 +242,8 @@ public class CombatEncounter : MonoBehaviour
                     spawnPoint.position,
                     spawnPoint.rotation
                 );
-
+            NetworkObject networkObject = enemy.GetComponent<NetworkObject>();
+            networkObject.Spawn(true);
 
             enemy.Died +=
                 HandleEnemyDied;

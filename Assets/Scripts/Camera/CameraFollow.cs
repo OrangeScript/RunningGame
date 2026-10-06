@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -8,6 +9,11 @@ public class CameraFollow : MonoBehaviour
 
     [SerializeField] private Vector3 offset = new Vector3(0f,7f,-9f);
     [SerializeField] private float followSpeed = 8f;
+
+    internal void SetTarget(Transform transform)
+    {
+        target = transform;
+    }
 
     private void LateUpdate()
     {

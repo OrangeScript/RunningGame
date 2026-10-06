@@ -28,11 +28,12 @@ public class Gate : MonoBehaviour
     void OnTriggerEnter(Collider other)
     {
         if(hasTriggered) return;
-        CrowdManager crowd = other.GetComponent<CrowdManager>();
+        CrowdManager crowd = other.GetComponentInParent<CrowdManager>();
         if(crowd == null)
         {
             return;
         }
+        if(!crowd.IsServer) return;
         ApplyGate(crowd);
         hasTriggered = true;
     }

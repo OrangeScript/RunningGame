@@ -1,7 +1,9 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.XR;
 
 public class PopulationUI : MonoBehaviour
 {
@@ -55,6 +57,14 @@ public class PopulationUI : MonoBehaviour
         populationText.text =
             population.ToString();
     }
+
+    internal void Bind(CrowdManager crowdManager)
+    {
+        crowdManager.PopulationChanged -=HandlePopulationChanged;
+        this.crowdManager = crowdManager;
+        crowdManager.PopulationChanged += HandlePopulationChanged;
+        HandlePopulationChanged(crowdManager.Population);
+    }
     // Start is called before the first frame update
-    
+
 }

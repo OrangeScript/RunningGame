@@ -1,8 +1,9 @@
 using System.Collections;
 using System.Collections.Generic;
+using Unity.Netcode;
 using UnityEngine;
 
-public class ItemManager : MonoBehaviour
+public class ItemManager : NetworkBehaviour
 {
 
     private readonly List<ItemRuntime> items =
@@ -20,6 +21,7 @@ public class ItemManager : MonoBehaviour
 
     void Update()
     {
+        if(!IsServer) return;
             for (
                 int i = 0;
                 i < items.Count;
@@ -45,6 +47,30 @@ public class ItemManager : MonoBehaviour
             item.ModifyAttack(plan);
         }
     }
+
+    public void AcquireServer(
+        UpgradeData upgrade
+    )
+    {
+        if(!IsServer) return;
+        if(upgrade == null) return;
+        ItemRuntime runtime = upgrade.CreateRuntime();
+        if(runtime == null) return;
+        runtime.OnAcquire(this);
+        items.Add(runtime);
+        if (
+            runtime is
+            ActiveAttackItemRuntime activeItem
+        )
+        {
+            activeItems.Add(
+                activeItem
+            );
+        }
+
+        ItemVisualAcquiredClientRpc(upgrade.NetworkId);
+    }
+
     public void Acquire(UpgradeData upgrade)
     {
         if(upgrade == null) return;
@@ -82,5 +108,36 @@ public class ItemManager : MonoBehaviour
         ].TryActivate();
     }
 
-    
+    public void RequestActivateActiveItem(
+        int slotIndex
+    )
+    {
+        if (!IsOwner)
+            return;
+
+
+        ActivateActiveItemServerRpc(
+            slotIndex
+        );
+    }
+
+
+    [ServerRpc]
+    private void ActivateActiveItemServerRpc(
+        int slotIndex
+    )
+    {
+        if (
+            slotIndex < 0 ||
+            slotIndex >= activeItems.Count
+        )
+        {
+            return;
+        }
+
+
+        activeItems[
+            slotIndex
+        ].TryActivate();
+    }
 }

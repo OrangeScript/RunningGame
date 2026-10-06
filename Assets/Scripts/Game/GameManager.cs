@@ -1,7 +1,8 @@
 using System;
+using Unity.Netcode;
 using UnityEngine;
 
-public class GameManager : MonoBehaviour
+public class GameManager : NetworkBehaviour
 {
     
     public static GameManager instance
@@ -26,15 +27,15 @@ public class GameManager : MonoBehaviour
     }
 
     [Header("Run Flow")]
-    [SerializeField] private RunnerController runnerController;
-    [SerializeField] private ItemManager itemManager;
+    // [SerializeField] private RunnerController runnerController;
+    // [SerializeField] private ItemManager itemManager;
     [SerializeField] private UpgradeSelectionUI upgradeSelectionUI;
 
-    public RunState state
-    {
-        get;
-        private set;
-    } = RunState.Running;
+    private NetworkVariable<RunState> runState = 
+        new NetworkVariable<RunState>(RunState.Running,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
+    public RunState state => runState.Value;
 
     public event Action<RunState> StateChanged;
     private CombatEncounter currentEncounter;
@@ -142,11 +143,12 @@ public class GameManager : MonoBehaviour
         RunState newState
     )
     {
+        if(!IsServer) return;
         if (state == newState)
             return;
 
 
-        state =
+        runState.Value =
             newState;
 
 
@@ -165,11 +167,7 @@ public class GameManager : MonoBehaviour
     
     private void ApplyState()
     {
-        if(runnerController == null) return;
-        bool enableForwardMovement = state == RunState.Running;
-        runnerController.SetForwardMovementEnabled(
-                enableForwardMovement
-            );
+
     }
 
 }
