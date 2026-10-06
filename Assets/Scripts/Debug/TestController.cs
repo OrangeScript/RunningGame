@@ -28,38 +28,38 @@ public class TestController : MonoBehaviour
     {
         if (Input.GetKeyDown(KeyCode.Q))
         {
-            itemManager.Acquire(
+            itemManager.AcquireServer(
                 heavyBullet
             );
         }
         if (Input.GetKeyDown(KeyCode.L))
         {
-            itemManager.Acquire(
+            itemManager.AcquireServer(
                 thunderStrike
             );
         }
         if (Input.GetKeyDown(KeyCode.S))
         {
-            itemManager.Acquire(
+            itemManager.AcquireServer(
                 raincore
             );
         }
         if (Input.GetKeyDown(KeyCode.B))
         {
-            itemManager.Acquire(
+            itemManager.AcquireServer(
                 earthCore
             );
         }
 
         if (Input.GetKeyDown(KeyCode.W))
         {
-            itemManager.Acquire(
+            itemManager.AcquireServer(
                 iceCore
             );
         }
         if(Input.GetKeyDown(KeyCode.R))
         {
-            itemManager.Acquire(explosion);
+            itemManager.AcquireServer(explosion);
         }
         if (
             Input.GetKeyDown(
@@ -67,7 +67,7 @@ public class TestController : MonoBehaviour
             )
         )
         {
-            itemManager.Acquire(
+            itemManager.AcquireServer(
                 Bounce
             );
         }

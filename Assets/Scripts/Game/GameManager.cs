@@ -98,7 +98,7 @@ public class GameManager : NetworkBehaviour
         );
 
 
-        OpenUpgradeSelection();
+        // OpenUpgradeSelection();
     }
 
 

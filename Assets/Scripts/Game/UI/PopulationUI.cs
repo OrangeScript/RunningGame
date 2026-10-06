@@ -60,7 +60,7 @@ public class PopulationUI : MonoBehaviour
 
     internal void Bind(CrowdManager crowdManager)
     {
-        crowdManager.PopulationChanged -=HandlePopulationChanged;
+        this.crowdManager.PopulationChanged -=HandlePopulationChanged;
         this.crowdManager = crowdManager;
         crowdManager.PopulationChanged += HandlePopulationChanged;
         HandlePopulationChanged(crowdManager.Population);

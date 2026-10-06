@@ -77,12 +77,6 @@ public class ActiveItemInput : MonoBehaviour
                 .RequestActivateActiveItem(0);
 
 
-        if (success)
-        {
-            Debug.Log(
-                "主动技能1释放成功"
-            );
-        }
     }
 
 
@@ -94,16 +88,11 @@ public class ActiveItemInput : MonoBehaviour
             return;
 
 
-        bool success =
+        
             itemManager
-                .TryActivateActiveItem(1);
+                .RequestActivateActiveItem(1);
 
 
-        if (success)
-        {
-            Debug.Log(
-                "主动技能2释放成功"
-            );
-        }
+   
     }
 }
