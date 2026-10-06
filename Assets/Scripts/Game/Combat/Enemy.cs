@@ -71,6 +71,7 @@ public class Enemy : NetworkBehaviour
         if (IsServer)
         {
             currentHealth.Value = maxHealth;
+            FindNearestPlayer();
         }
     }
 
@@ -91,10 +92,7 @@ public class Enemy : NetworkBehaviour
 
         return statusController.ApplyElement(element,amount,duration,sourceDamage);
     }
-    void Start()
-    {
-        FindNearestPlayer();
-    }
+
 
     private void FindNearestPlayer()
     {
@@ -196,6 +194,7 @@ public class Enemy : NetworkBehaviour
 
     public void TakeDamage(float damage,ElementType element)
     {
+        if(!IsServer) return;
         if (dead.Value)
         {
             return;

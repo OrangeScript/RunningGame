@@ -77,11 +77,19 @@ public class StatusController : NetworkBehaviour
         frozenNetwork.Value;
 
 
-
-    // Start is called before the first frame update
-    void Start()
+    public override void OnNetworkSpawn()
     {
-        
+        frozenNetwork.OnValueChanged += HandleFrozenNetworkChanged;
+        FrozenChanged?.Invoke(frozenNetwork.Value);
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        frozenNetwork.OnValueChanged -= HandleFrozenNetworkChanged;
+    }
+    private void HandleFrozenNetworkChanged(bool previousValue, bool newValue)
+    {
+        FrozenChanged?.Invoke(newValue);
     }
 
     // Update is called once per frame

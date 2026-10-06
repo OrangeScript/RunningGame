@@ -73,9 +73,8 @@ public class ActiveItemInput : MonoBehaviour
             return;
 
 
-        bool success =
-            itemManager
-                .TryActivateActiveItem(0);
+        itemManager
+                .RequestActivateActiveItem(0);
 
 
         if (success)

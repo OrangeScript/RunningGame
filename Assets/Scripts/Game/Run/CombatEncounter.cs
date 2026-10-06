@@ -12,7 +12,6 @@ public class CombatEncounter : NetworkBehaviour
 
     [Header("References")]
 
-    [SerializeField]
     private GameManager gameManager;
 
 
@@ -64,8 +63,22 @@ public class CombatEncounter : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
+        gameManager = GameManager.instance;
         barriersActive.OnValueChanged += HandleBarrierChanged;
+        HandleBarrierChanged(false,barriersActive.Value);
         
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        barriersActive.OnValueChanged -= HandleBarrierChanged;
+        foreach(Enemy enemy in aliveEnemies)
+        {
+            if(enemy != null)
+            {
+                enemy.Died -= HandleEnemyDied;
+            }
+        }
     }
 
     private void HandleBarrierChanged(bool previousValue, bool newValue)
@@ -120,20 +133,20 @@ public class CombatEncounter : NetworkBehaviour
     // Cleanup
     // ========================================
 
-    private void OnDestroy()
-    {
-        foreach (
-            Enemy enemy
-            in aliveEnemies
-        )
-        {
-            if (enemy != null)
-            {
-                enemy.Died -=
-                    HandleEnemyDied;
-            }
-        }
-    }
+    // private void OnDestroy()
+    // {
+    //     foreach (
+    //         Enemy enemy
+    //         in aliveEnemies
+    //     )
+    //     {
+    //         if (enemy != null)
+    //         {
+    //             enemy.Died -=
+    //                 HandleEnemyDied;
+    //         }
+    //     }
+    // }
 
     // Start is called before the first frame update
     void Start()
@@ -278,6 +291,8 @@ public class CombatEncounter : NetworkBehaviour
         Enemy enemy
     )
     {
+        //TODO: why 不清除敌人呢？为什么只有服务器处理？
+        if(!IsServer) return;
         if (enemy == null)
             return;
 

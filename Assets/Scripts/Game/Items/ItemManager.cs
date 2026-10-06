@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using Unity.Netcode;
@@ -68,45 +69,45 @@ public class ItemManager : NetworkBehaviour
             );
         }
 
-        ItemVisualAcquiredClientRpc(upgrade.NetworkId);
+        // ItemVisualAcquiredClientRpc(upgrade.NetworkId);
     }
 
-    public void Acquire(UpgradeData upgrade)
-    {
-        if(upgrade == null) return;
-        ItemRuntime runtime = upgrade.CreateRuntime();
-        if(runtime == null) return;
-        runtime.OnAcquire(this);
-        items.Add(runtime);
-        if (
-            runtime is ActiveAttackItemRuntime activeItem
-        )
-        {
-            activeItems.Add(
-                activeItem
-            );
-        }
+    // public void Acquire(UpgradeData upgrade)
+    // {
+    //     if(upgrade == null) return;
+    //     ItemRuntime runtime = upgrade.CreateRuntime();
+    //     if(runtime == null) return;
+    //     runtime.OnAcquire(this);
+    //     items.Add(runtime);
+    //     if (
+    //         runtime is ActiveAttackItemRuntime activeItem
+    //     )
+    //     {
+    //         activeItems.Add(
+    //             activeItem
+    //         );
+    //     }
 
-        Debug.Log( $"获得道具：{upgrade.UpgradeName}，当前道具数：{items.Count}");
-    }
+    //     Debug.Log( $"获得道具：{upgrade.UpgradeName}，当前道具数：{items.Count}");
+    // }
 
-    public bool TryActivateActiveItem(
-        int slotIndex
-    )
-    {
-        if (
-            slotIndex < 0 ||
-            slotIndex >= activeItems.Count
-        )
-        {
-            return false;
-        }
+    // public bool TryActivateActiveItem(
+    //     int slotIndex
+    // )
+    // {
+    //     if (
+    //         slotIndex < 0 ||
+    //         slotIndex >= activeItems.Count
+    //     )
+    //     {
+    //         return false;
+    //     }
 
 
-        return activeItems[
-            slotIndex
-        ].TryActivate();
-    }
+    //     return activeItems[
+    //         slotIndex
+    //     ].TryActivate();
+    // }
 
     public void RequestActivateActiveItem(
         int slotIndex
@@ -132,12 +133,32 @@ public class ItemManager : NetworkBehaviour
             slotIndex >= activeItems.Count
         )
         {
-            return;
+            return ;
         }
 
 
-        activeItems[
+        bool success = activeItems[
             slotIndex
         ].TryActivate();
+
+        NotifyActivationResultClientRpc(success);
     }
+
+
+    [ClientRpc]
+    private void NotifyActivationResultClientRpc(bool success)
+    {
+        if(!IsOwner) return;
+        
+        if (success)
+        {
+            Debug.Log("技能释放成功");
+        }
+        else
+        {
+            Debug.Log("技能释放失败");
+        }
+    }
+
+    
 }

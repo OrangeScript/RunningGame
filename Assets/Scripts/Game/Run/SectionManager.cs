@@ -1,8 +1,9 @@
 using System.Collections;
 using System.Collections.Generic;
+using Unity.Netcode;
 using UnityEngine;
 
-public class SectionManager : MonoBehaviour
+public class SectionManager : NetworkBehaviour
 {
     [Header("Start")]
 
@@ -19,11 +20,11 @@ public class SectionManager : MonoBehaviour
         spawnedSections =
             new List<LevelSection>();
 
-    private void Start()
+    public override void OnNetworkSpawn()
     {
+        if(!IsServer) return;
         BuildFiniteRun();
     }
-
 
     public void BuildFiniteRun()
     {
@@ -57,6 +58,8 @@ public class SectionManager : MonoBehaviour
                     nextPosition,
                     nextRotation
                 );
+            NetworkObject networkObject = section.GetComponent<NetworkObject>();
+            networkObject.Spawn(true);
 
 
             spawnedSections.Add(
@@ -94,11 +97,11 @@ public class SectionManager : MonoBehaviour
             in spawnedSections
         )
         {
-            if (section != null)
+            if (section != null )
             {
-                Destroy(
-                    section.gameObject
-                );
+                NetworkObject networkObject = section.
+                    GetComponent<NetworkObject>();
+                networkObject.Despawn(true);
             }
         }
 

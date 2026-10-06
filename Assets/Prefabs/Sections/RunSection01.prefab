@@ -357,6 +357,7 @@ GameObject:
   m_Component:
   - component: {fileID: 9152154923489266822}
   - component: {fileID: 6272707322150587693}
+  - component: {fileID: 5944726395042003809}
   m_Layer: 0
   m_Name: RunSection01
   m_TagString: Untagged
@@ -397,3 +398,24 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   sectionType: 0
   exitPoint: {fileID: 3810266011720804009}
+--- !u!114 &5944726395042003809
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8390360882805793827}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  GlobalObjectIdHash: 0
+  InScenePlacedSourceGlobalObjectIdHash: 0
+  AlwaysReplicateAsRoot: 0
+  SynchronizeTransform: 1
+  ActiveSceneSynchronization: 0
+  SceneMigrationSynchronization: 1
+  SpawnWithObservers: 1
+  DontDestroyWithOwner: 0
+  AutoObjectParentSync: 1

@@ -1,6 +1,8 @@
 
 using UnityEngine;
 using TMPro;
+using System.Collections.Generic;
+using Unity.Netcode;
 public enum GateOperation
 {
     Add,
@@ -18,7 +20,9 @@ public class Gate : MonoBehaviour
 
     [Header("Visual")]
     [SerializeField] private TMP_Text gateText;
-    private bool hasTriggered;
+    // private bool hasTriggered;
+
+    private readonly HashSet<ulong> triggeredPlayers = new HashSet<ulong>();
 
     void Start()
     {
@@ -27,15 +31,17 @@ public class Gate : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
-        if(hasTriggered) return;
+        if(!NetworkManager.Singleton.IsServer) return;
+
         CrowdManager crowd = other.GetComponentInParent<CrowdManager>();
         if(crowd == null)
         {
             return;
         }
-        if(!crowd.IsServer) return;
+
+        ulong num = crowd.OwnerClientId;
+        if(!triggeredPlayers.Add(num))return;
         ApplyGate(crowd);
-        hasTriggered = true;
     }
 
     private void ApplyGate(CrowdManager crowd)

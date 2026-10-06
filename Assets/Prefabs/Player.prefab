@@ -50,6 +50,7 @@ GameObject:
   - component: {fileID: 1349282705503535044}
   - component: {fileID: 4092528544765701663}
   - component: {fileID: 1558330507874597688}
+  - component: {fileID: -5026025290559006557}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -184,12 +185,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4ba8f9a4d53464a48bfd57d24d497485, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  crowdVisualizer: {fileID: 0}
+  crowdVisualizer: {fileID: 1349282705503535044}
   crowd: {fileID: 6523759433596417909}
   firePoint: {fileID: 651366276976266844}
   stats: {fileID: 339089265858027651}
   itemManager: {fileID: 4190755959432121557}
-  archetype: {fileID: 0}
+  archetype: {fileID: 11400000, guid: 1718dee2dd9f7f944ae558e59e02f7ff, type: 2}
   enemyLayer:
     serializedVersion: 2
     m_Bits: 128
@@ -245,7 +246,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 0
+  GlobalObjectIdHash: 292507430
   InScenePlacedSourceGlobalObjectIdHash: 0
   AlwaysReplicateAsRoot: 0
   SynchronizeTransform: 1
@@ -285,6 +286,20 @@ MonoBehaviour:
   InLocalSpace: 0
   Interpolate: 1
   SlerpPosition: 0
+--- !u!114 &-5026025290559006557
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4890985756179447387}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 718a558ee62b2804bb5196e0c4b6d170, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  playerInput: {fileID: 1214762496214609139}
+  itemManager: {fileID: 4190755959432121557}
 --- !u!1 &6308778547938757391
 GameObject:
   m_ObjectHideFlags: 0

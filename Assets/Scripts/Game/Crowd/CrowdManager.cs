@@ -56,6 +56,7 @@ public class CrowdManager : NetworkBehaviour
     public override void OnNetworkSpawn()
     {
         population.OnValueChanged += HandlePopulationChanged;
+        if(IsServer) population.Value = startingPopulation;
         PopulationChanged?.Invoke(population.Value);
     }
 

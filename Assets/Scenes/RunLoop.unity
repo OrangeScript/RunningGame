@@ -1352,6 +1352,7 @@ GameObject:
   - component: {fileID: 901636172}
   - component: {fileID: 901636171}
   - component: {fileID: 901636173}
+  - component: {fileID: 901636174}
   m_Layer: 0
   m_Name: GameManagers
   m_TagString: Untagged
@@ -1408,6 +1409,27 @@ MonoBehaviour:
   - {fileID: 1729076946537388798, guid: ed1984c5dea1dd4428c93c5cd47adfb5, type: 3}
   - {fileID: 6272707322150587693, guid: 77646e0a1da63bd449858b43dfab0e61, type: 3}
   - {fileID: 4262753253851062642, guid: 5d9b97c52d77af243b8b61d23029acc7, type: 3}
+--- !u!114 &901636174
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 901636170}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  GlobalObjectIdHash: 1568780687
+  InScenePlacedSourceGlobalObjectIdHash: 0
+  AlwaysReplicateAsRoot: 0
+  SynchronizeTransform: 1
+  ActiveSceneSynchronization: 0
+  SceneMigrationSynchronization: 1
+  SpawnWithObservers: 1
+  DontDestroyWithOwner: 0
+  AutoObjectParentSync: 1
 --- !u!1 &996349282
 GameObject:
   m_ObjectHideFlags: 0
