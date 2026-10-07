@@ -23,6 +23,10 @@ public class GameManager : NetworkBehaviour
         }
 
         instance = this;
+        if(sectionManager == null)
+        {
+            sectionManager = GetComponent<SectionManager>();
+        }
     
     }
 
@@ -31,14 +35,151 @@ public class GameManager : NetworkBehaviour
     // [SerializeField] private ItemManager itemManager;
     [SerializeField] private UpgradeSelectionUI upgradeSelectionUI;
 
+    [SerializeField] private int minMultiplayers = 2;
+    [SerializeField] private int maxMultiplayers = 4;
+    public int MinMultiplayerPlayers => minMultiplayers;
+    public int MaxPlayers => maxMultiplayers;
+    [SerializeField] private SectionManager sectionManager;
     private NetworkVariable<RunState> runState = 
-        new NetworkVariable<RunState>(RunState.Running,
+        new NetworkVariable<RunState>(RunState.Lobby,
             NetworkVariableReadPermission.Everyone,
             NetworkVariableWritePermission.Server);
+    
+    private NetworkVariable<int> connectedPlayerCount
+        = new NetworkVariable<int>(0,NetworkVariableReadPermission.Everyone,
+                                NetworkVariableWritePermission.Server);
     public RunState state => runState.Value;
 
     public event Action<RunState> StateChanged;
     private CombatEncounter currentEncounter;
+    public int ConnectedPlayerCount => connectedPlayerCount.Value;
+    public event Action<int> PlayerCountChanged;
+
+
+    public void StartMultiplayerRun()
+    {
+        if (!IsServer)
+            return;
+
+
+        if (
+            state !=
+            RunState.Lobby
+        )
+        {
+            return;
+        }
+
+
+        if (
+            ConnectedPlayerCount <
+            minMultiplayers
+        )
+        {
+            Debug.Log(
+                $"人数不足，当前 {ConnectedPlayerCount} 人"
+            );
+
+            return;
+        }
+
+
+        StartRunInternal();
+    }
+
+
+    public void StartSinglePlayerRun()
+    {
+        if (!IsServer)
+            return;
+
+
+        if (
+            state !=
+            RunState.Lobby
+        )
+        {
+            return;
+        }
+
+
+        // 单机不检查最少人数
+        StartRunInternal();
+    }
+
+
+    private void StartRunInternal()
+    {
+        if (sectionManager == null)
+        {
+            Debug.LogError(
+                "GameManager 找不到 SectionManager"
+            );
+
+            return;
+        }
+
+
+        // 地图直到真正开局才生成
+        sectionManager
+            .BuildFiniteRun();
+
+
+        SetState(
+            RunState.Running
+        );
+    }
+
+
+    public override void OnNetworkSpawn()
+    {
+        runState.OnValueChanged += HandleRunStateChanged;
+        connectedPlayerCount.OnValueChanged += HandlePlayerCountChanged;
+
+        if (IsServer)
+        {
+            NetworkManager.OnClientConnectedCallback += HandleClientConnected;
+            NetworkManager.OnClientDisconnectCallback += HandleClientDisconnected;
+            RefreshPlayerCount(); // ???
+            runState.Value = RunState.Lobby;
+        }
+        StateChanged?.Invoke(
+            runState.Value
+        );
+
+
+        PlayerCountChanged?.Invoke(
+            connectedPlayerCount.Value
+        );
+    }
+
+    private void RefreshPlayerCount()
+    {
+        if(!IsServer) return;
+        connectedPlayerCount.Value = NetworkManager.ConnectedClientsIds.Count;
+    }
+
+    private void HandleClientDisconnected(ulong obj)
+    {
+        if(!IsServer) return;
+        RefreshPlayerCount();
+    }
+
+    private void HandleClientConnected(ulong obj)
+    {
+        if(!IsServer) return;
+        RefreshPlayerCount();
+    }
+
+    private void HandlePlayerCountChanged(int previousValue, int newValue)
+    {
+        PlayerCountChanged?.Invoke(newValue);
+    }
+
+    private void HandleRunStateChanged(RunState previousValue, RunState newValue)
+    {
+        StateChanged?.Invoke(newValue);
+    }
 
     void Start()
     {
@@ -49,6 +190,7 @@ public class GameManager : NetworkBehaviour
         CombatEncounter encounter
     )
     {
+        if(!IsServer) return;
         if (encounter == null)
             return;
 
@@ -75,6 +217,7 @@ public class GameManager : NetworkBehaviour
         CombatEncounter encounter
     )
     {
+        if(!IsServer) return;
         if (
             state !=
             RunState.Combat
@@ -92,7 +235,8 @@ public class GameManager : NetworkBehaviour
             return;
         }
 
-
+        currentEncounter.FinishEncounter();
+        currentEncounter = null;
         SetState(
             RunState.UpgradeSelection
         );
@@ -102,42 +246,42 @@ public class GameManager : NetworkBehaviour
     }
 
 
-    private void OpenUpgradeSelection()
-    {
-        upgradeSelectionUI.Show(FinishUpgradeSelection);
-    }
+    // private void OpenUpgradeSelection()
+    // {
+    //     upgradeSelectionUI.Show(FinishUpgradeSelection);
+    // }
 
-    private void FinishUpgradeSelection(UpgradeData upgrade)
-    {
-        if (
-            upgrade != null &&
-            itemManager != null
-        )
-        {
-            itemManager.Acquire(
-                upgrade
-            );
-        }
-
-
-        if (
-            currentEncounter !=
-            null
-        )
-        {
-            currentEncounter
-                .FinishEncounter();
-        }
+    // private void FinishUpgradeSelection(UpgradeData upgrade)
+    // {
+    //     if (
+    //         upgrade != null &&
+    //         itemManager != null
+    //     )
+    //     {
+    //         itemManager.Acquire(
+    //             upgrade
+    //         );
+    //     }
 
 
-        currentEncounter =
-            null;
+    //     if (
+    //         currentEncounter !=
+    //         null
+    //     )
+    //     {
+    //         currentEncounter
+    //             .FinishEncounter();
+    //     }
 
 
-        SetState(
-            RunState.Running
-        );
-    }
+    //     currentEncounter =
+    //         null;
+
+
+    //     SetState(
+    //         RunState.Running
+    //     );
+    // }
 
     private void SetState(
         RunState newState

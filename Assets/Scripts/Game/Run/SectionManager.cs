@@ -22,8 +22,6 @@ public class SectionManager : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
-        if(!IsServer) return;
-        BuildFiniteRun();
     }
 
     public void BuildFiniteRun()

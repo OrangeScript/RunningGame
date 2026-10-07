@@ -800,7 +800,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 05347aa8270143e4b8b6ccd612bfea46, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  crowdManager: {fileID: 0}
   populationText: {fileID: 482511830}
 --- !u!1 &512434913
 GameObject:
@@ -1350,9 +1349,9 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 901636172}
+  - component: {fileID: 901636174}
   - component: {fileID: 901636171}
   - component: {fileID: 901636173}
-  - component: {fileID: 901636174}
   m_Layer: 0
   m_Name: GameManagers
   m_TagString: Untagged
@@ -1372,8 +1371,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cb3883dec3400b24383197d3b3d87bc5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  runnerController: {fileID: 0}
-  itemManager: {fileID: 0}
   upgradeSelectionUI: {fileID: 2092479687}
 --- !u!4 &901636172
 Transform:
@@ -1405,10 +1402,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   startPoint: {fileID: 144807029}
   sectionPrefabs:
-  - {fileID: 4262753253851062642, guid: 5d9b97c52d77af243b8b61d23029acc7, type: 3}
   - {fileID: 1729076946537388798, guid: ed1984c5dea1dd4428c93c5cd47adfb5, type: 3}
   - {fileID: 6272707322150587693, guid: 77646e0a1da63bd449858b43dfab0e61, type: 3}
-  - {fileID: 4262753253851062642, guid: 5d9b97c52d77af243b8b61d23029acc7, type: 3}
 --- !u!114 &901636174
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3272,15 +3267,6 @@ MonoBehaviour:
   - {fileID: 1249780587}
   - {fileID: 658404348}
   - {fileID: 416542370}
-  upgradePool:
-  - {fileID: 11400000, guid: 4aa74b0cc83210345be78507af52ad15, type: 2}
-  - {fileID: 11400000, guid: 5216eef1cf774fa44b768ea8e964080d, type: 2}
-  - {fileID: 11400000, guid: 1a74dd79d15e0f9428327324f582dd0a, type: 2}
-  - {fileID: 11400000, guid: 4210d6afed53fc94997d7480b558b94d, type: 2}
-  - {fileID: 11400000, guid: a1819d1364bb12746aa9a41c09d059a8, type: 2}
-  - {fileID: 11400000, guid: f7ec03fde78a9254bad328d4f02bf599, type: 2}
-  - {fileID: 11400000, guid: 86f639c8abf77cc4a9a4d6c27bd863bf, type: 2}
-  - {fileID: 11400000, guid: 9dcda51734b1ad644be5846841b72eb5, type: 2}
 --- !u!114 &2092479688
 MonoBehaviour:
   m_ObjectHideFlags: 0

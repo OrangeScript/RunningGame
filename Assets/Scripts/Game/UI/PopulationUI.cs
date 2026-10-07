@@ -2,12 +2,12 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.XR;
 
 public class PopulationUI : MonoBehaviour
 {
-    [SerializeField]
     private CrowdManager crowdManager;
 
     [SerializeField]
@@ -60,7 +60,11 @@ public class PopulationUI : MonoBehaviour
 
     internal void Bind(CrowdManager crowdManager)
     {
-        this.crowdManager.PopulationChanged -=HandlePopulationChanged;
+        if (this.crowdManager != null)
+        {
+            this.crowdManager.PopulationChanged -=
+                HandlePopulationChanged;
+        }
         this.crowdManager = crowdManager;
         crowdManager.PopulationChanged += HandlePopulationChanged;
         HandlePopulationChanged(crowdManager.Population);

@@ -4,6 +4,7 @@ using UnityEngine;
 
 public enum RunState
 {
+    Lobby,
     Running,
     Combat,
     UpgradeSelection,

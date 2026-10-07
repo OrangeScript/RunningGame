@@ -10,14 +10,14 @@ public class UpgradeUITest : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetKeyDown(
-            KeyCode.U
-        ))
-        {
-            selectionUI.Show(
-                HandleUpgrade
-            );
-        }
+        // if (Input.GetKeyDown(
+        //     KeyCode.U
+        // ))
+        // {
+        //     selectionUI.Show(
+        //         HandleUpgrade
+        //     );
+        // }
     }
 
 

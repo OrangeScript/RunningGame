@@ -92,7 +92,7 @@ public class CrowdTestController : MonoBehaviour
     {
 
         if(giantAcquired) return;
-        itemManager.Acquire(giantUpgrade);
+        itemManager.AcquireServer(giantUpgrade);
         giantAcquired = true;
     }
 
