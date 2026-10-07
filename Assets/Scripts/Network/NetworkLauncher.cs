@@ -33,7 +33,7 @@ public class NetworkLauncher : MonoBehaviour
     [SerializeField]
     private Button startGameButton;
 
-
+    [SerializeField]
     private NetworkManager
         networkManager;
 
@@ -51,7 +51,18 @@ public class NetworkLauncher : MonoBehaviour
 
     void Awake()
     {
-        networkManager = NetworkManager.Singleton;
+        
+        ShowMainMenu();
+    }
+    void OnDestroy()
+    {
+        UnbindGameManager();
+        networkManager.OnClientDisconnectCallback -= HandleClientDisconnected;
+    }
+
+    void Start()
+    {
+        networkManager = FindFirstObjectByType<NetworkManager>();
         if (networkManager == null)
         {
             Debug.LogError(
@@ -64,14 +75,7 @@ public class NetworkLauncher : MonoBehaviour
         networkManager.NetworkConfig.ConnectionApproval = true;
         networkManager.OnClientConnectedCallback += HandleClientDisconnected;
         
-        ShowMainMenu();
     }
-    void OnDestroy()
-    {
-        UnbindGameManager();
-        networkManager.OnClientDisconnectCallback -= HandleClientDisconnected;
-    }
-
     private void HandleClientDisconnected(ulong obj)
     {
         if (
@@ -179,7 +183,7 @@ public class NetworkLauncher : MonoBehaviour
         int maxPlayers = 4;
         bool roomFull = networkManager.ConnectedClientsIds.Count >= maxPlayers;
 
-        bool gameStarted = gameManager.state != RunState.Lobby;
+        bool gameStarted = GameManager.instance.state != RunState.Lobby;
         bool approved = !roomFull && !gameStarted;
 
 
@@ -353,6 +357,8 @@ public class NetworkLauncher : MonoBehaviour
         {
             networkUIRoot
                 .SetActive(false);
+                lobbyPanel.SetActive(false);
+            Debug.Log("关闭");
         }
     }
 
