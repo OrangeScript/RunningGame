@@ -52,6 +52,14 @@ public class NetworkLauncher : MonoBehaviour
     void Awake()
     {
         networkManager = NetworkManager.Singleton;
+        if (networkManager == null)
+        {
+            Debug.LogError(
+                "找不到 NetworkManager"
+            );
+
+            return;
+        }
         //client 连接时候的效果呢？
         networkManager.NetworkConfig.ConnectionApproval = true;
         networkManager.OnClientConnectedCallback += HandleClientDisconnected;
@@ -152,7 +160,7 @@ public class NetworkLauncher : MonoBehaviour
         gameManager.StartMultiplayerRun();    
     }
 
-    void LeaveRoom()
+    public void LeaveRoom()
     {
         singlePlayerPending = false;
         UnbindGameManager();
@@ -411,23 +419,6 @@ public class NetworkLauncher : MonoBehaviour
             statusText.text =
                 "等待房主开始游戏...";
         }
-    }
-    public void StartClient()
-    {
-        NetworkManager.Singleton.StartClient();
-    }
-    public void StartHost()
-    {
-        NetworkManager.Singleton.StartHost();
-    }
-    public void StartServer()
-    {
-        NetworkManager.Singleton.StartServer();
-    }
-
-    public void Shutdown()
-    {
-        NetworkManager.Singleton.Shutdown();
     }
 
 }
