@@ -30,6 +30,7 @@ public class GameManager : NetworkBehaviour
         {
             sectionManager = GetComponent<SectionManager>();
         }
+        BuildUpgradeLookup();
     
     }
 
@@ -62,9 +63,9 @@ public class GameManager : NetworkBehaviour
     [Header("Upgrade")]
     [SerializeField]
     UpgradeData[] upgradePool;
-    Dictionary<int,UpgradeData> upgradeById;
-    Dictionary<ulong,int[]> offeredUpgradeIds;
-    HashSet<ulong> pendingUpgradeClients;
+    Dictionary<int,UpgradeData> upgradeById = new Dictionary<int, UpgradeData>();
+    Dictionary<ulong,int[]> offeredUpgradeIds = new Dictionary<ulong, int[]>();
+    HashSet<ulong> pendingUpgradeClients = new HashSet<ulong>();
 
 
     public void StartMultiplayerRun()

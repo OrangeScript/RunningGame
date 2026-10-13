@@ -232,10 +232,10 @@ GameObject:
   - component: {fileID: 145571601901218925}
   - component: {fileID: 574551423378646596}
   - component: {fileID: 647217113349033490}
+  - component: {fileID: 3075080103870586849}
   - component: {fileID: 8695167146782651618}
   - component: {fileID: -2469480489255127400}
   - component: {fileID: 3351696001740036369}
-  - component: {fileID: 3075080103870586849}
   - component: {fileID: 1891817531180215015}
   m_Layer: 7
   m_Name: Enemy
@@ -253,7 +253,7 @@ Transform:
   m_GameObject: {fileID: 2605326261405977560}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1.09, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -285,7 +285,7 @@ CapsuleCollider:
   m_Radius: 0.5
   m_Height: 2
   m_Direction: 1
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Center: {x: 0, y: 1, z: 0}
 --- !u!114 &647217113349033490
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -305,6 +305,27 @@ MonoBehaviour:
   popupAnchor: {fileID: 6531031054040708664}
   verticalSpacing: 0.3
   resetDelay: 0.25
+--- !u!114 &3075080103870586849
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2605326261405977560}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  GlobalObjectIdHash: 1949616000
+  InScenePlacedSourceGlobalObjectIdHash: 0
+  AlwaysReplicateAsRoot: 0
+  SynchronizeTransform: 1
+  ActiveSceneSynchronization: 0
+  SceneMigrationSynchronization: 1
+  SpawnWithObservers: 1
+  DontDestroyWithOwner: 0
+  AutoObjectParentSync: 1
 --- !u!114 &8695167146782651618
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -363,27 +384,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   statusController: {fileID: -2469480489255127400}
   frozenVfxAnimator: {fileID: 9100552931199269542}
---- !u!114 &3075080103870586849
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2605326261405977560}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 0
-  InScenePlacedSourceGlobalObjectIdHash: 0
-  AlwaysReplicateAsRoot: 0
-  SynchronizeTransform: 1
-  ActiveSceneSynchronization: 0
-  SceneMigrationSynchronization: 1
-  SpawnWithObservers: 1
-  DontDestroyWithOwner: 0
-  AutoObjectParentSync: 1
 --- !u!114 &1891817531180215015
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -441,7 +441,7 @@ Transform:
   m_GameObject: {fileID: 4173412619333559185}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 1, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -617,7 +617,7 @@ Transform:
   m_GameObject: {fileID: 6717950775191897928}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 1, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
