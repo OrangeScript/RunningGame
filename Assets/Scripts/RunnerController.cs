@@ -113,7 +113,13 @@ public class RunnerController : NetworkBehaviour
     void HandleMovement()
     {
         RunState currentState = GameManager.instance.state;
-        if(currentState == RunState.Lobby) return;
+        if(currentState == RunState.Lobby||
+            currentState ==
+                RunState.UpgradeSelection ||
+            currentState ==
+                RunState.GameOver ||
+            currentState ==
+                RunState.Victory) return;
         bool forwardEnabled = currentState == RunState.Running;
         float zSpeed = forwardEnabled? forwardSpeed:0f;
 

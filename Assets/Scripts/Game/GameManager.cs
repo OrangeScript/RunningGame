@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.Data.Common;
 using Unity.Netcode;
+using Unity.VisualScripting;
 using UnityEngine;
 
 public class GameManager : NetworkBehaviour
@@ -54,6 +57,14 @@ public class GameManager : NetworkBehaviour
     private CombatEncounter currentEncounter;
     public int ConnectedPlayerCount => connectedPlayerCount.Value;
     public event Action<int> PlayerCountChanged;
+
+
+    [Header("Upgrade")]
+    [SerializeField]
+    UpgradeData[] upgradePool;
+    Dictionary<int,UpgradeData> upgradeById;
+    Dictionary<ulong,int[]> offeredUpgradeIds;
+    HashSet<ulong> pendingUpgradeClients;
 
 
     public void StartMultiplayerRun()
@@ -240,9 +251,131 @@ public class GameManager : NetworkBehaviour
         SetState(
             RunState.UpgradeSelection
         );
+        BeginUpgradeSelection();
 
 
         // OpenUpgradeSelection();
+    }
+
+    private void BeginUpgradeSelection()
+    {
+        if(!IsServer) return;
+        offeredUpgradeIds.Clear();
+        pendingUpgradeClients.Clear();
+
+        foreach(ulong clientId in NetworkManager.ConnectedClientsIds)
+        {
+            int[] options = CreateUpgradeOptions();
+            offeredUpgradeIds[clientId] = options;
+            pendingUpgradeClients.Add(clientId);
+            SendUpgradeOptionsToClient(clientId,options);
+
+        }
+
+        if(pendingUpgradeClients.Count == 0)
+        {
+            FinishUpgradeSelection();
+        }
+    }
+
+    private void FinishUpgradeSelection()
+    {
+        if (!IsServer)
+        return;
+
+
+        if (currentEncounter != null)
+        {
+            currentEncounter
+                .FinishEncounter();
+        }
+
+
+        currentEncounter =
+            null;
+
+
+        offeredUpgradeIds.Clear();
+
+        pendingUpgradeClients.Clear();
+
+
+        SetState(
+            RunState.Running
+        );
+    }
+
+    private void SendUpgradeOptionsToClient(ulong clientId, int[] options)
+    {
+        ClientRpcParams rpcParams= new ClientRpcParams
+        {
+            Send = new ClientRpcSendParams
+            {
+                TargetClientIds = new ulong[]
+                {
+                    clientId
+                }
+            }
+        };
+        ShowUpgradeOptionsClientRpc(
+            options,rpcParams
+        );
+    }
+
+
+    [ClientRpc]
+    private void ShowUpgradeOptionsClientRpc(int[] options, ClientRpcParams rpcParams)
+    {
+        List<UpgradeData> datas = new List<UpgradeData>();
+        foreach(int id in options)
+        {
+            UpgradeData data = GetUpgradeById(id);
+            datas.Add(data);
+        }
+        upgradeSelectionUI.Show(datas.ToArray(),HandleLocalUpgradeSelected);
+    }
+
+    private void HandleLocalUpgradeSelected(UpgradeData data)
+    {
+        SubmitUpgradeSelectionServerRpc(data.NetworkId);
+    }
+
+
+
+    [ServerRpc(RequireOwnership = false)]
+    private void SubmitUpgradeSelectionServerRpc(int networkId,ServerRpcParams rpcParams=default)
+    {
+        ulong senderClientId = rpcParams.Receive.SenderClientId;
+        if(state!=RunState.UpgradeSelection) return;
+        if(!pendingUpgradeClients.Contains(senderClientId)) return;
+
+        pendingUpgradeClients.Remove(senderClientId);
+
+        if(!offeredUpgradeIds.TryGetValue(senderClientId,out int[] offeredIds)) return;
+        bool allowed = Array.IndexOf(offeredIds,networkId) >= 0;
+        if(!allowed) return;
+        
+
+        NetworkClient client = NetworkManager.ConnectedClients[senderClientId];
+        ItemManager itemManager = client.PlayerObject.GetComponent<ItemManager>();
+        itemManager.AcquireServer(upgradeById[networkId]);
+        pendingUpgradeClients.Remove(senderClientId);
+        offeredUpgradeIds.Remove(senderClientId);
+        if (
+            pendingUpgradeClients.Count ==
+            0
+        )
+        {
+            FinishUpgradeSelection();
+        }
+    }
+
+    private UpgradeData GetUpgradeById(
+        int id
+    )
+    {
+        upgradeById.TryGetValue(id,out UpgradeData upgrade);
+        return upgrade;
     }
 
 
@@ -296,12 +429,6 @@ public class GameManager : NetworkBehaviour
             newState;
 
 
-        ApplyState();
-
-
-        StateChanged?.Invoke(
-            state
-        );
 
 
         Debug.Log(
@@ -313,5 +440,50 @@ public class GameManager : NetworkBehaviour
     {
 
     }
+
+    private void BuildUpgradeLookup()
+    {
+        upgradeById.Clear();
+        foreach(UpgradeData upgrade
+            in upgradePool)
+        {
+            upgradeById.Add(upgrade.NetworkId,upgrade);
+        }
+    }
+
+    public int[] CreateUpgradeOptions()
+    {
+        const int optionCount = 3;
+        List<UpgradeData> candidates = new List<UpgradeData>(upgradeById.Values);
+        int[] result = new int[optionCount];
+        for(int i = 0;
+            i < optionCount;
+            i++)
+        {
+            int randomIndex =
+            UnityEngine.Random.Range(
+                0,
+                candidates.Count
+            );
+
+
+            UpgradeData selected =
+                candidates[
+                    randomIndex
+                ];
+
+
+            result[i] =
+                selected.NetworkId;
+
+
+            candidates.RemoveAt(
+                randomIndex
+            );
+        }
+        return result;
+
+    }
+
 
 }
