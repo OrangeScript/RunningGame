@@ -11,4 +11,10 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/RunLoop.unity
     guid: 0a0e493c4505f5843a53e12c65c379d0
+  - enabled: 1
+    path: Assets/Scenes/Arena.unity
+    guid: de79c2fa87dafc148adefe038c414a2c
+  - enabled: 1
+    path: Assets/Scenes/Bootstrap.unity
+    guid: 4af759a5934f3404e9c02326e5c5aeba
   m_configObjects: {}
