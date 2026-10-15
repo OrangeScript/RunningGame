@@ -17,4 +17,10 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Bootstrap.unity
     guid: 4af759a5934f3404e9c02326e5c5aeba
+  - enabled: 1
+    path: Assets/Scenes/CrowdTest.unity
+    guid: 3aaeff0c7c6b3e74ab23af013f564b73
+  - enabled: 1
+    path: Assets/Scenes/CombatTest.unity
+    guid: 96cdc92a6d3103f4a95e1418c06cad50
   m_configObjects: {}

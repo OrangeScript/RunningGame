@@ -106,7 +106,8 @@ public class RoomSession : MonoBehaviour
     }
     public void SelectArena()
     {
-        if (phase != RoomPhase.Menu)
+        
+        if (phase != RoomPhase.Lobby)
             return;
 
         selectedMode = GameMode.Arena;
@@ -115,7 +116,7 @@ public class RoomSession : MonoBehaviour
 
     public void SelectRunning()
     {
-        if (phase != RoomPhase.Menu)
+        if (phase != RoomPhase.Lobby)
             return;
 
         selectedMode = GameMode.Running;
