@@ -205,8 +205,8 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
-        m_TargetAssemblyTypeName: NetworkLauncher, Assembly-CSharp
+      - m_Target: {fileID: 1373228377}
+        m_TargetAssemblyTypeName: RoomSession, Assembly-CSharp
         m_MethodName: LeaveRoom
         m_Mode: 1
         m_Arguments:
@@ -645,8 +645,8 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
-        m_TargetAssemblyTypeName: NetworkLauncher, Assembly-CSharp
+      - m_Target: {fileID: 1373228377}
+        m_TargetAssemblyTypeName: RoomSession, Assembly-CSharp
         m_MethodName: CreateRoom
         m_Mode: 1
         m_Arguments:
@@ -1226,9 +1226,9 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
-        m_TargetAssemblyTypeName: NetworkLauncher, Assembly-CSharp
-        m_MethodName: StartSinglePlayer
+      - m_Target: {fileID: 1373228377}
+        m_TargetAssemblyTypeName: RoomSession, Assembly-CSharp
+        m_MethodName: StartSoloRunning
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -1359,8 +1359,8 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
-        m_TargetAssemblyTypeName: NetworkLauncher, Assembly-CSharp
+      - m_Target: {fileID: 1373228377}
+        m_TargetAssemblyTypeName: RoomSession, Assembly-CSharp
         m_MethodName: JoinRoom
         m_Mode: 1
         m_Arguments:
@@ -2000,6 +2000,7 @@ GameObject:
   - component: {fileID: 1373228376}
   - component: {fileID: 1373228375}
   - component: {fileID: 1373228374}
+  - component: {fileID: 1373228377}
   m_Layer: 0
   m_Name: NetworkManager
   m_TagString: Untagged
@@ -2054,8 +2055,6 @@ MonoBehaviour:
     Prefabs:
       NetworkPrefabsLists:
       - {fileID: 11400000, guid: 605936875040e6146b55ebf2e0c0186f, type: 2}
-      - {fileID: 11400000, guid: 605936875040e6146b55ebf2e0c0186f, type: 2}
-      - {fileID: 11400000, guid: 605936875040e6146b55ebf2e0c0186f, type: 2}
     TickRate: 30
     ClientConnectionBufferTimeout: 10
     ConnectionApproval: 1
@@ -2089,6 +2088,32 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1373228377
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1373228373}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e00d100f8fd79149917083191cf3c99, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  networkManager: {fileID: 1373228375}
+  runnerPlayerPrefab: {fileID: 4092528544765701663, guid: c086e0aa7dc892c4c9e43b68da6ebd50,
+    type: 3}
+  arenaPlayerPrefab: {fileID: 2080107684069299080, guid: 64b8834df6e2b844ea08429ba7bdc300,
+    type: 3}
+  runningScene: RunLoop
+  arenaScene: Arena
+  networkUIRoot: {fileID: 426336074}
+  mainMenuPanel: {fileID: 1024393307}
+  lobbyPanel: {fileID: 1574586925}
+  statusText: {fileID: 1350493966}
+  playerCountText: {fileID: 1026422238}
+  modeText: {fileID: 0}
+  startMatchButton: {fileID: 1721127794}
 --- !u!1 &1399629384
 GameObject:
   m_ObjectHideFlags: 0
@@ -2342,9 +2367,9 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
-        m_TargetAssemblyTypeName: NetworkLauncher, Assembly-CSharp
-        m_MethodName: StartGame
+      - m_Target: {fileID: 1373228377}
+        m_TargetAssemblyTypeName: RoomSession, Assembly-CSharp
+        m_MethodName: StartMatch
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
