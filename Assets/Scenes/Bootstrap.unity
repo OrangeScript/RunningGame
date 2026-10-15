@@ -2645,7 +2645,7 @@ MonoBehaviour:
   arenaScene: Arena
   networkUIRoot: {fileID: 426336074}
   mainMenuPanel: {fileID: 1024393307}
-  lobbyPanel: {fileID: 0}
+  lobbyPanel: {fileID: 2059113713}
   statusText: {fileID: 1350493966}
   playerCountText: {fileID: 1026422238}
   modeText: {fileID: 1015080277}

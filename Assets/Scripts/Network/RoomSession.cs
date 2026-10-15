@@ -67,11 +67,25 @@ public class RoomSession : MonoBehaviour
 
         networkManager.OnClientDisconnectCallback +=
             HandleDisconnected;
-        networkManager.SceneManager.OnLoadEventCompleted +=
-            OnSceneLoaded;
+        
 
         ShowMainMenu();
     }
+
+    private void RegisterSceneEvents()
+    {
+        var sceneManager = networkManager.SceneManager;
+
+        if (sceneManager == null)
+        {
+            Debug.LogError("SceneManager 未初始化");
+            return;
+        }
+
+        sceneManager.OnLoadEventCompleted -= OnSceneLoaded;
+        sceneManager.OnLoadEventCompleted += OnSceneLoaded;
+    }
+
 
     void OnDestroy()
     {
@@ -135,6 +149,7 @@ public class RoomSession : MonoBehaviour
             return false;
         }
         ShowLobby();UpdateLobbyUI();
+        RegisterSceneEvents();
         return true;
     }
 
@@ -151,6 +166,7 @@ public class RoomSession : MonoBehaviour
         }
         ShowLobby();
         SetStatus("正在连接...");
+        RegisterSceneEvents();
     }
 
     public void LeaveRoom()
