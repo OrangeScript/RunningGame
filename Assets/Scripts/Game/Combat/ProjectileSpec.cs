@@ -1,6 +1,5 @@
 using System.Collections;
 using System.Collections.Generic;
-using System.Drawing;
 using UnityEngine;
 
 
@@ -8,6 +7,7 @@ using UnityEngine;
 public class ProjectileSpec
 {
 
+    public GameplayMode gameplayMode = GameplayMode.Runner;
     public float damage = 1f;
     public float speed = 10f;
     public float sizeMultiplier = 1f;
@@ -24,6 +24,7 @@ public class ProjectileSpec
     public ProjectileSpec Clone()
     {
         return new ProjectileSpec{
+            gameplayMode = gameplayMode,
             damage = damage,
             speed = speed,
             sizeMultiplier = sizeMultiplier,

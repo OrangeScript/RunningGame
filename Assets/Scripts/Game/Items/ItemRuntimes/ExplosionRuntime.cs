@@ -16,10 +16,13 @@ public class ExplosionRuntime : ItemRuntime
     public override void ModifyProjectile(ProjectileSpec spec)
     {
         base.ModifyProjectile(spec);
+        bool alreadyExplosive = spec.explosionRadius > 0f;
         spec.explosionRadius = UnityEngine.Mathf.Max(
                 spec.explosionRadius,
                 radius
             );
-        spec.explosionDamageMultiplier *= damageMultiplier;
+        spec.explosionDamageMultiplier = alreadyExplosive
+            ? spec.explosionDamageMultiplier + damageMultiplier
+            : damageMultiplier;
     }
 }

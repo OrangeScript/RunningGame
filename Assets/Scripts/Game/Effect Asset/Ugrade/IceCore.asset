@@ -12,7 +12,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e1ecbfdde894a8743bc2de4f4e0369ab, type: 3}
   m_Name: IceCore
   m_EditorClassIdentifier: 
+  networkId: 1002
   upgradeName: "\u5BD2\u51B0"
   description: "\u5B50\u5F39\u53D8\u6210\u51B0\u5B50\u5F39"
   icon: {fileID: 10911, guid: 0000000000000000f000000000000000, type: 0}
   effect: {fileID: 11400000, guid: 60fede502b419b0408de071948f269ca, type: 2}
+  category: 0
+  rarity: 1
+  stackPolicy: 1
+  supportedModes: 7
+  acquisitionSources: 7
+  temporaryDuration: 30
+  modeEffects: []

@@ -12,7 +12,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e1ecbfdde894a8743bc2de4f4e0369ab, type: 3}
   m_Name: Upgrade_ThunderStrike
   m_EditorClassIdentifier: 
+  networkId: 1008
   upgradeName: "\u96F7\u66B4"
-  description: "\u7D2F\u7D2F"
+  description: "主动释放雷暴，对目标造成雷电伤害。"
   icon: {fileID: 10911, guid: 0000000000000000f000000000000000, type: 0}
   effect: {fileID: 11400000, guid: 3f15e88c8b6bbf24c8dc92dea7a1d973, type: 2}
+  category: 1
+  rarity: 2
+  stackPolicy: 1
+  supportedModes: 7
+  acquisitionSources: 7
+  temporaryDuration: 30
+  modeEffects: []

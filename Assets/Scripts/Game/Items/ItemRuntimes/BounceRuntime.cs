@@ -17,6 +17,6 @@ public class BounceRuntime : ItemRuntime
     {
         base.ModifyProjectile(spec);
         spec.bounce += extraBounces;
-        spec.bounceRange += bounceRange;
+        spec.bounceRange = Mathf.Max(spec.bounceRange, bounceRange);
     }
 }

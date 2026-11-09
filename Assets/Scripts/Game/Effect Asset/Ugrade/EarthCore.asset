@@ -12,7 +12,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e1ecbfdde894a8743bc2de4f4e0369ab, type: 3}
   m_Name: EarthCore
   m_EditorClassIdentifier: 
-  upgradeName: 
-  description: 
+  networkId: 1009
+  upgradeName: "岩心弹药"
+  description: "攻击附加岩元素，参与元素反应。"
   icon: {fileID: 0}
   effect: {fileID: 11400000, guid: c6982271092ee314da0890546054b1d1, type: 2}
+  category: 0
+  rarity: 1
+  stackPolicy: 1
+  supportedModes: 7
+  acquisitionSources: 7
+  temporaryDuration: 30
+  modeEffects: []

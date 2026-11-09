@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e1ecbfdde894a8743bc2de4f4e0369ab, type: 3}
+  m_Name: Upgrade_PrismaticBarrage
+  m_EditorClassIdentifier:
+  networkId: 1201
+  upgradeName: "棱镜齐射"
+  description: "每次额外发射 4 枚弹丸；伤害提高 15%，攻击间隔缩短 20%。"
+  icon: {fileID: 10905, guid: 0000000000000000f000000000000000, type: 0}
+  effect: {fileID: 11400000, guid: e1200000000000000000000000000001, type: 2}
+  category: 0
+  rarity: 3
+  stackPolicy: 1
+  supportedModes: 7
+  acquisitionSources: 2
+  temporaryDuration: 30
+  modeEffects: []

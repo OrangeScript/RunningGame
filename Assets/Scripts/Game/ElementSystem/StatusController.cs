@@ -182,6 +182,9 @@ public class StatusController : NetworkBehaviour
             if (enemy.IsDead)
                 continue;
 
+            if (self != null && self.LaneId >= 0 && enemy.LaneId != self.LaneId)
+                continue;
+
 
             Vector3 difference =
                 enemy.transform.position -
@@ -420,6 +423,8 @@ public class StatusController : NetworkBehaviour
         HashSet<Enemy> damaged =
             new HashSet<Enemy>();
 
+        Enemy self = GetComponent<Enemy>();
+
 
         foreach (Collider hit in hits)
         {
@@ -431,6 +436,9 @@ public class StatusController : NetworkBehaviour
                 continue;
 
             if (enemy.IsDead)
+                continue;
+
+            if (self != null && self.LaneId >= 0 && enemy.LaneId != self.LaneId)
                 continue;
 
             if (!damaged.Add(enemy))

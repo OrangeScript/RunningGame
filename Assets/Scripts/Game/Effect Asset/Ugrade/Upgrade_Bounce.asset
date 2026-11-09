@@ -12,7 +12,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e1ecbfdde894a8743bc2de4f4e0369ab, type: 3}
   m_Name: Upgrade_Bounce
   m_EditorClassIdentifier: 
-  upgradeName: "\u8DF3\u8DF3\u5F39\u5F39"
-  description: bouncebounce
+  networkId: 1004
+  upgradeName: "弹射弹药"
+  description: "命中后，弹丸继续弹向附近的其他目标。"
   icon: {fileID: 10913, guid: 0000000000000000f000000000000000, type: 0}
   effect: {fileID: 11400000, guid: 6b9d6baa8bc1fe54a97ac3dead728a64, type: 2}
+  category: 0
+  rarity: 1
+  stackPolicy: 0
+  supportedModes: 7
+  acquisitionSources: 7
+  temporaryDuration: 30
+  modeEffects: []

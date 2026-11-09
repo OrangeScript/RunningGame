@@ -14,17 +14,45 @@ public class RunnerController : NetworkBehaviour
     [SerializeField] private float horizontalSpeed = 7f;
 
     [Header("Boundary")]
-    [SerializeField] private float xLimit = 4f;
+    [SerializeField] private float xLimit = RunSectionPresentation.MovementHalfWidth;
 
     private CharacterController controller;
     private PlayerInput playerInput;
+    private CrowdManager crowd;
     private float serverMoveInput;
+
+    private readonly NetworkVariable<PlayerRunPhase> playerPhase =
+        new NetworkVariable<PlayerRunPhase>(
+            PlayerRunPhase.Lobby,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
+
+    private readonly NetworkVariable<int> laneId =
+        new NetworkVariable<int>(0,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
+
+    private readonly NetworkVariable<float> laneCenterX =
+        new NetworkVariable<float>(0f,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
+
+    private readonly NetworkVariable<float> laneHalfWidth =
+        new NetworkVariable<float>(RunSectionPresentation.MovementHalfWidth,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
+
+    public PlayerRunPhase Phase => playerPhase.Value;
+    public int LaneId => laneId.Value;
+    public float LaneCenterX => laneCenterX.Value;
+    public float MovementHalfWidth => laneHalfWidth.Value;
 
 
     void Awake()
     {
         controller = GetComponent<CharacterController>();
         playerInput = GetComponent<PlayerInput>();
+        crowd = GetComponent<CrowdManager>();
 
         playerInput.enabled = false;
         controller.enabled = false;
@@ -42,7 +70,14 @@ public class RunnerController : NetworkBehaviour
                 Vector3.right *
                 (float)OwnerClientId *
                 0.15f;
+
+            laneCenterX.Value = transform.position.x;
+            laneHalfWidth.Value = xLimit;
+            playerPhase.Value = PlayerRunPhase.Lobby;
         }
+
+        if (crowd != null)
+            crowd.PopulationDepleted += HandlePopulationDepleted;
 
 
         if (IsOwner)
@@ -74,12 +109,19 @@ public class RunnerController : NetworkBehaviour
                     GetComponent<CrowdManager>()
                 );
             }
+
+            RunnerRuntimeHUD.Ensure(
+                this,
+                crowd,
+                GetComponent<ItemManager>());
         }
     }
 
     public override void OnNetworkDespawn()
     {
         playerInput.enabled = false;
+        if (crowd != null)
+            crowd.PopulationDepleted -= HandlePopulationDepleted;
     }
     // Start is called before the first frame update
     void Start()
@@ -112,15 +154,16 @@ public class RunnerController : NetworkBehaviour
 
     void HandleMovement()
     {
-        RunState currentState = GameManager.instance.state;
-        if(currentState == RunState.Lobby||
-            currentState ==
-                RunState.UpgradeSelection ||
-            currentState ==
-                RunState.GameOver ||
-            currentState ==
-                RunState.Victory) return;
-        bool forwardEnabled = currentState == RunState.Running;
+        PlayerRunPhase currentPhase = playerPhase.Value;
+        if (currentPhase == PlayerRunPhase.Lobby ||
+            currentPhase == PlayerRunPhase.RewardChoice ||
+            currentPhase == PlayerRunPhase.WaitingAtExit ||
+            currentPhase == PlayerRunPhase.Eliminated)
+        {
+            return;
+        }
+
+        bool forwardEnabled = currentPhase == PlayerRunPhase.Running;
         float zSpeed = forwardEnabled? forwardSpeed:0f;
 
 
@@ -141,8 +184,8 @@ public class RunnerController : NetworkBehaviour
         targetX =
             Mathf.Clamp(
                 targetX,
-                -xLimit,
-                xLimit
+                laneCenterX.Value - laneHalfWidth.Value,
+                laneCenterX.Value + laneHalfWidth.Value
             );
 
 
@@ -164,6 +207,75 @@ public class RunnerController : NetworkBehaviour
         controller.Move(
             displacement
         );
+    }
+
+    public void ConfigureLaneServer(int newLaneId, float centerX, float halfWidth)
+    {
+        if (!IsServer)
+            return;
+
+        laneId.Value = Mathf.Max(0, newLaneId);
+        laneCenterX.Value = centerX;
+        laneHalfWidth.Value = Mathf.Max(0.5f, halfWidth);
+    }
+
+    public void TeleportToLaneServer(
+        int newLaneId,
+        Vector3 position,
+        float halfWidth)
+    {
+        if (!IsServer)
+            return;
+
+        bool wasEnabled = controller != null && controller.enabled;
+        if (wasEnabled)
+            controller.enabled = false;
+
+        transform.position = position;
+        ConfigureLaneServer(newLaneId, position.x, halfWidth);
+
+        if (wasEnabled)
+            controller.enabled = true;
+    }
+
+    public void BeginRunServer()
+    {
+        SetPhaseServer(PlayerRunPhase.Running);
+    }
+
+    public void EnterCombatServer()
+    {
+        SetPhaseServer(PlayerRunPhase.Combat);
+    }
+
+    public void EnterRewardChoiceServer()
+    {
+        SetPhaseServer(PlayerRunPhase.RewardChoice);
+    }
+
+    public void ResumeRunningServer()
+    {
+        SetPhaseServer(PlayerRunPhase.Running);
+    }
+
+    public void WaitAtExitServer()
+    {
+        SetPhaseServer(PlayerRunPhase.WaitingAtExit);
+    }
+
+    private void SetPhaseServer(PlayerRunPhase phase)
+    {
+        if (IsServer)
+            playerPhase.Value = phase;
+    }
+
+    private void HandlePopulationDepleted()
+    {
+        if (!IsServer)
+            return;
+
+        playerPhase.Value = PlayerRunPhase.Eliminated;
+        GameManager.instance?.NotifyRunnerEliminated(this);
     }
 
 }

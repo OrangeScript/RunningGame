@@ -8,6 +8,11 @@ using UnityEngine.XR;
 
 public class PopulationUI : MonoBehaviour
 {
+    private void Awake()
+    {
+        // The unified Runner HUD owns health and firepower presentation.
+        if (populationText != null) populationText.gameObject.SetActive(false);
+    }
     private CrowdManager crowdManager;
 
     [SerializeField]

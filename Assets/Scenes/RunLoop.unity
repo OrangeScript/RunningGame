@@ -1377,7 +1377,21 @@ MonoBehaviour:
   minMultiplayers: 2
   maxMultiplayers: 4
   sectionManager: {fileID: 0}
-  upgradePool: []
+  upgradePool:
+  - {fileID: 11400000, guid: f7ec03fde78a9254bad328d4f02bf599, type: 2}
+  - {fileID: 11400000, guid: 4aa74b0cc83210345be78507af52ad15, type: 2}
+  - {fileID: 11400000, guid: 5216eef1cf774fa44b768ea8e964080d, type: 2}
+  - {fileID: 11400000, guid: 86928f08c538f934f8d72b01c8b3f902, type: 2}
+  - {fileID: 11400000, guid: 9dcda51734b1ad644be5846841b72eb5, type: 2}
+  - {fileID: 11400000, guid: e6803478ccbad534db6cb83659d78271, type: 2}
+  - {fileID: 11400000, guid: a1819d1364bb12746aa9a41c09d059a8, type: 2}
+  - {fileID: 11400000, guid: 86f639c8abf77cc4a9a4d6c27bd863bf, type: 2}
+  - {fileID: 11400000, guid: 1a74dd79d15e0f9428327324f582dd0a, type: 2}
+  - {fileID: 11400000, guid: c1100000000000000000000000000001, type: 2}
+  - {fileID: 11400000, guid: c1100000000000000000000000000002, type: 2}
+  - {fileID: 11400000, guid: c1100000000000000000000000000003, type: 2}
+  - {fileID: 11400000, guid: d1200000000000000000000000000001, type: 2}
+  - {fileID: 11400000, guid: d1200000000000000000000000000002, type: 2}
 --- !u!4 &901636172
 Transform:
   m_ObjectHideFlags: 0
@@ -1410,6 +1424,16 @@ MonoBehaviour:
   sectionPrefabs:
   - {fileID: 1729076946537388798, guid: ed1984c5dea1dd4428c93c5cd47adfb5, type: 3}
   - {fileID: 6272707322150587693, guid: 77646e0a1da63bd449858b43dfab0e61, type: 3}
+  - {fileID: 4262753253851062642, guid: 5d9b97c52d77af243b8b61d23029acc7, type: 3}
+  sectionCatalog: []
+  bodySectionCount: 9
+  appendBoss: 0
+  appendFinish: 0
+  useConnectedPlayerCount: 1
+  fallbackLaneCount: 1
+  laneSpacing: 22
+  useFixedSeed: 0
+  fixedSeed: 12345
 --- !u!114 &901636174
 MonoBehaviour:
   m_ObjectHideFlags: 0

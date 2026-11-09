@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using Unity.Netcode;
-using UnityEditor.VersionControl;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -73,7 +72,7 @@ public class NetworkLauncher : MonoBehaviour
         }
         //client 连接时候的效果呢？
         networkManager.NetworkConfig.ConnectionApproval = true;
-        networkManager.OnClientConnectedCallback += HandleClientDisconnected;
+        networkManager.OnClientDisconnectCallback += HandleClientDisconnected;
         
     }
     private void HandleClientDisconnected(ulong obj)

@@ -2,188 +2,45 @@ using System;
 using Unity.Netcode;
 using UnityEngine;
 
+/// <summary>Legacy population storage now represents firepower, never avatar count.</summary>
 public class CrowdManager : NetworkBehaviour
 {
-    [Header("Population")]
-    [SerializeField] 
-    [Min(0)]
-    private int startingPopulation = 1;
-
-    private NetworkVariable<int> population = new NetworkVariable<int>(
-        1,NetworkVariableReadPermission.Everyone,
-        NetworkVariableWritePermission.Server
-    );
-
-    public int Population =>population.Value;
-
-
+    [SerializeField, Min(1)] private int startingPopulation = 20;
+    [SerializeField, Min(1)] private int startingHealth = 100;
+    private readonly NetworkVariable<int> population = new NetworkVariable<int>(20);
+    private readonly NetworkVariable<int> health = new NetworkVariable<int>(100);
+    public int Population => population.Value;
+    public int Firepower => population.Value;
+    public int Health => health.Value;
+    public int MaxHealth => startingHealth;
     public event Action<int> PopulationChanged;
-
-    // [Header("Crowd")]
-    // [SerializeField] private GameObject unitPrefab;
-    // [SerializeField] private Transform crowdRoot;
-
-    // [SerializeField] private TMP_Text populationText;
-
-    // [Header("Formation")]
-    // [SerializeField] private float spacing = 0.65f;
-    // private readonly List<GameObject> units = new List<GameObject>();
-    // public int UnitCount => units.Count;
-    // public Transform GetUnitTransform(int index)
-    // {
-    //     if(index < 0 || index >= units.Count)
-    //     {
-    //         return null;
-    //     }
-
-    //     return units[index].transform;
-    // }
-
-    // void Start()
-    // {
-    //     SetPopulation(population);
-    // }
-
-    // public void DamagePopulation(int damage)
-    // {
-    //     if(damage <= 0)
-    //     {
-    //         return;
-    //     }
-    //     SetPopulation(population - damage);
-    // }
+    public event Action<int> HealthChanged;
+    public event Action PopulationDepleted;
 
     public override void OnNetworkSpawn()
     {
-        population.OnValueChanged += HandlePopulationChanged;
-        if(IsServer) population.Value = startingPopulation;
+        population.OnValueChanged += HandlePower;
+        health.OnValueChanged += HandleHealth;
+        if (IsServer) { population.Value = startingPopulation; health.Value = startingHealth; }
         PopulationChanged?.Invoke(population.Value);
+        HealthChanged?.Invoke(health.Value);
     }
-
     public override void OnNetworkDespawn()
     {
-        population.OnValueChanged -= HandlePopulationChanged;
+        population.OnValueChanged -= HandlePower;
+        health.OnValueChanged -= HandleHealth;
     }
-
-    private void HandlePopulationChanged(int previousValue,
-        int newValue)
+    private void HandlePower(int before,int after) => PopulationChanged?.Invoke(after);
+    private void HandleHealth(int before,int after)
     {
-        PopulationChanged?.Invoke(newValue);
+        HealthChanged?.Invoke(after);
+        if (before > 0 && after == 0) PopulationDepleted?.Invoke();
     }
-
-    public void SetPopulation(int value)
-    {
-        if(!IsServer) return;
-        population.Value = Mathf.Max(0,value);
-    }
-
-    // public void OnCrowdDead()
-    // {
-    //     Debug.Log("Game Over!");
-    //     RunnerController runner = GetComponent<RunnerController>();
-    //     if (runner != null)
-    //     {
-    //         runner.enabled = false;
-    //     }
-    // }
-
-    // void RefreshCrowd()
-    // {
-    //     AdjustUnitCount();
-    //     UpdateFormation();
-    //     UpdatePopulationUI();
-    // }
-
-    // private void UpdatePopulationUI()
-    // {
-    //     if(populationText == null) return;
-    //     populationText.text = population.ToString();
-    // }
-    // private void AdjustUnitCount()
-    // {
-    //     while(units.Count < population)
-    //     {
-    //         GameObject unit = Instantiate(unitPrefab,crowdRoot);
-    //         units.Add(unit);
-    //     }
-
-    //     while(units.Count > population)
-    //     {
-    //         int lastIndex = units.Count - 1;
-    //         GameObject unit = units[lastIndex];
-    //         units.RemoveAt(lastIndex);
-    //         Destroy(unit);
-    //     }
-    // }
-
-    // private void UpdateFormation()
-    // {
-    //     int count = units.Count;
-    //     if(count == 0) return;
-
-    //     int columns = Mathf.CeilToInt(Mathf.Sqrt(count));
-
-    //     for (int i = 0; i < count; i++)
-    //     {
-    //         int row =
-    //             i / columns;
-
-    //         int column =
-    //             i % columns;
-
-    //         float x =
-    //             (
-    //                 column -
-    //                 (columns - 1) * 0.5f
-    //             ) * spacing;
-
-    //         float z =
-    //             -row * spacing;
-
-    //         units[i].transform.localPosition =
-    //             new Vector3(
-    //                 x,
-    //                 0.5f,
-    //                 z
-    //             );
-    //     }    
-    // }
-
-    public void AddPopulation(int amount)
-    {
-        if (!IsServer)
-            return;
-        SetPopulation(Population+amount);
-    }
-
-    public void MultiplyPopulation(int multiplier)
-    {
-        if (!IsServer)
-            return;
-        SetPopulation(population.Value*multiplier);
-    }
-
-    public void SubtractPopulation(int amount)
-    {
-        if (!IsServer)
-            return;
-        SetPopulation(population.Value - amount);
-    }
-
-    public void DividePopulation(int divisor)
-    {
-        if (!IsServer)
-            return;
-        if(divisor <= 0)
-        {
-            return;
-        }
-        else
-        {
-            SetPopulation(population.Value / divisor);
-        }
-    }
-
-
-
+    public void SetPopulation(int value) { if (IsServer) population.Value = Mathf.Clamp(value,1,9999); }
+    public void DamagePopulation(int damage) => DamageHealth(damage);
+    public void DamageHealth(int damage) { if (IsServer && damage > 0) health.Value = Mathf.Max(0,health.Value-damage); }
+    public void AddPopulation(int amount) => SetPopulation((int)Math.Min(9999L,(long)Population+amount));
+    public void SubtractPopulation(int amount) => SetPopulation(Population-Mathf.Max(0,amount));
+    public void MultiplyPopulation(int multiplier) => SetPopulation((int)Math.Min(9999L,(long)Population*Mathf.Max(1,multiplier)));
+    public void DividePopulation(int divisor) { if (divisor > 0) SetPopulation(Population/divisor); }
 }

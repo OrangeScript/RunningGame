@@ -1,164 +1,372 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
+/// <summary>
+/// Server-side build entry used while replacing a pawn during a mode/scene
+/// transition. Temporary items retain their remaining gameplay time instead
+/// of being refreshed by the transition.
+/// </summary>
+public readonly struct PlayerItemSnapshot
+{
+    public PlayerItemSnapshot(UpgradeData definition, float remainingTime)
+    {
+        Definition = definition;
+        RemainingTime = remainingTime;
+    }
+
+    public UpgradeData Definition { get; }
+    public float RemainingTime { get; }
+}
+
+/// <summary>
+/// Server-authoritative inventory. Definitions are stable across modes while
+/// runtimes interpret the current gameplay context.
+/// </summary>
 public class ItemManager : NetworkBehaviour
 {
+    private sealed class OwnedItem
+    {
+        public UpgradeData Definition;
+        public ItemRuntime Runtime;
+        public float RemainingTime;
+    }
 
-    private readonly List<ItemRuntime> items =
-        new List<ItemRuntime>();
+    [SerializeField] private GameplayMode startingMode = GameplayMode.Runner;
 
-    private readonly List<ActiveAttackItemRuntime>
-    activeItems =
-        new List<ActiveAttackItemRuntime>();
+    private readonly List<OwnedItem> items = new List<OwnedItem>();
+    private readonly List<ItemRuntime> activeItems = new List<ItemRuntime>();
+
+    private readonly NetworkVariable<GameplayMode> gameplayMode =
+        new NetworkVariable<GameplayMode>(
+            GameplayMode.Runner,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
+
+    private readonly NetworkList<int> acquiredItemIds = new NetworkList<int>();
 
     public int itemCount => items.Count;
+    public GameplayMode CurrentMode => gameplayMode.Value;
+    public int SyncedItemCount => acquiredItemIds.Count;
+
+    public event Action<GameplayMode> ModeChanged;
+    public event Action InventoryChanged;
+
+    public override void OnNetworkSpawn()
+    {
+        gameplayMode.OnValueChanged += HandleModeChanged;
+        acquiredItemIds.OnListChanged += HandleItemListChanged;
+
+        if (IsServer)
+            gameplayMode.Value = startingMode;
+
+        ModeChanged?.Invoke(gameplayMode.Value);
+        InventoryChanged?.Invoke();
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        gameplayMode.OnValueChanged -= HandleModeChanged;
+        acquiredItemIds.OnListChanged -= HandleItemListChanged;
+
+        for (int i = items.Count - 1; i >= 0; i--)
+            items[i].Runtime?.OnRemove();
+
+        items.Clear();
+        activeItems.Clear();
+    }
+
+    public int GetSyncedItemId(int index)
+    {
+        if (index < 0 || index >= acquiredItemIds.Count)
+            throw new ArgumentOutOfRangeException(nameof(index));
+
+        return acquiredItemIds[index];
+    }
+
+    /// <summary>Legacy/debug hook for an already-created runtime.</summary>
     public void AddItem(ItemRuntime item)
     {
-        items.Add(item);
+        if (item == null)
+            return;
+
+        RegisterRuntime(null, item, 0f, false);
     }
 
-    void Update()
+    private void Update()
     {
-        if(!IsServer) return;
-            for (
-                int i = 0;
-                i < items.Count;
-                i++
-            )
-            {
-                items[i].Tick(
-                    Time.deltaTime
-                );
-            }
+        if (!IsServer)
+            return;
+
+        if (!ShouldAdvanceGameplayTime())
+            return;
+
+        float deltaTime = Time.deltaTime;
+        for (int i = items.Count - 1; i >= 0; i--)
+        {
+            OwnedItem entry = items[i];
+            entry.Runtime.Tick(deltaTime);
+
+            if (entry.Definition == null || entry.Definition.Category != ItemCategory.Temporary)
+                continue;
+
+            entry.RemainingTime -= deltaTime;
+            if (entry.RemainingTime <= 0f)
+                RemoveAt(i);
+        }
     }
+
     public void ModifyProjectile(ProjectileSpec spec)
     {
-        foreach(ItemRuntime item in items)
-        {
-            item.ModifyProjectile(spec);
-        }
+        if (spec == null)
+            return;
+
+        spec.gameplayMode = CurrentMode;
+        for (int i = 0; i < items.Count; i++)
+            items[i].Runtime.ModifyProjectile(spec);
     }
+
     public void ModifyAttack(AttackPlan plan)
     {
-        foreach(ItemRuntime item in items)
-        {
-            item.ModifyAttack(plan);
-        }
+        if (plan == null)
+            return;
+
+        plan.gameplayMode = CurrentMode;
+        for (int i = 0; i < items.Count; i++)
+            items[i].Runtime.ModifyAttack(plan);
     }
 
-    public void AcquireServer(
-        UpgradeData upgrade
-    )
+    public void AcquireServer(UpgradeData upgrade)
     {
-        if(!IsServer) return;
-        if(upgrade == null) return;
-        ItemRuntime runtime = upgrade.CreateRuntime();
-        if(runtime == null) return;
-        runtime.OnAcquire(this);
-        items.Add(runtime);
-        if (
-            runtime is
-            ActiveAttackItemRuntime activeItem
-        )
-        {
-            activeItems.Add(
-                activeItem
-            );
-        }
-
-        // ItemVisualAcquiredClientRpc(upgrade.NetworkId);
+        TryAcquireServer(upgrade, ItemAcquisitionSource.LevelReward);
     }
 
-    // public void Acquire(UpgradeData upgrade)
-    // {
-    //     if(upgrade == null) return;
-    //     ItemRuntime runtime = upgrade.CreateRuntime();
-    //     if(runtime == null) return;
-    //     runtime.OnAcquire(this);
-    //     items.Add(runtime);
-    //     if (
-    //         runtime is ActiveAttackItemRuntime activeItem
-    //     )
-    //     {
-    //         activeItems.Add(
-    //             activeItem
-    //         );
-    //     }
+    public bool TryAcquireServer(UpgradeData upgrade, ItemAcquisitionSource source)
+    {
+        return TryRegisterDefinition(upgrade, source, null);
+    }
 
-    //     Debug.Log( $"获得道具：{upgrade.UpgradeName}，当前道具数：{items.Count}");
-    // }
+    public void SetGameplayModeServer(GameplayMode mode)
+    {
+        if (!IsServer || gameplayMode.Value == mode)
+            return;
 
-    // public bool TryActivateActiveItem(
-    //     int slotIndex
-    // )
-    // {
-    //     if (
-    //         slotIndex < 0 ||
-    //         slotIndex >= activeItems.Count
-    //     )
-    //     {
-    //         return false;
-    //     }
+        gameplayMode.Value = mode;
+    }
 
+    public int[] CaptureItemIds()
+    {
+        int[] snapshot = new int[items.Count];
+        for (int i = 0; i < items.Count; i++)
+            snapshot[i] = items[i].Definition != null ? items[i].Definition.NetworkId : 0;
 
-    //     return activeItems[
-    //         slotIndex
-    //     ].TryActivate();
-    // }
+        return snapshot;
+    }
 
-    public void RequestActivateActiveItem(
-        int slotIndex
-    )
+    public UpgradeData[] CaptureDefinitions()
+    {
+        List<UpgradeData> snapshot = new List<UpgradeData>(items.Count);
+        for (int i = 0; i < items.Count; i++)
+        {
+            if (items[i].Definition != null)
+                snapshot.Add(items[i].Definition);
+        }
+
+        return snapshot.ToArray();
+    }
+
+    public PlayerItemSnapshot[] CaptureBuildSnapshot()
+    {
+        var snapshot = new List<PlayerItemSnapshot>(items.Count);
+        for (int i = 0; i < items.Count; i++)
+        {
+            OwnedItem entry = items[i];
+            if (entry.Definition == null)
+                continue;
+
+            snapshot.Add(new PlayerItemSnapshot(
+                entry.Definition,
+                entry.Definition.Category == ItemCategory.Temporary
+                    ? Mathf.Max(0f, entry.RemainingTime)
+                    : 0f));
+        }
+
+        return snapshot.ToArray();
+    }
+
+    public bool TryRestoreServer(PlayerItemSnapshot snapshot)
+    {
+        if (snapshot.Definition == null)
+            return false;
+        if (snapshot.Definition.Category == ItemCategory.Temporary &&
+            snapshot.RemainingTime <= 0f)
+        {
+            return false;
+        }
+
+        float? remainingTime = snapshot.Definition.Category == ItemCategory.Temporary
+            ? Mathf.Min(snapshot.RemainingTime, snapshot.Definition.TemporaryDuration)
+            : null;
+        return TryRegisterDefinition(
+            snapshot.Definition,
+            ItemAcquisitionSource.Debug,
+            remainingTime);
+    }
+
+    public void RequestActivateActiveItem(int slotIndex)
     {
         if (!IsOwner)
             return;
 
-
-        ActivateActiveItemServerRpc(
-            slotIndex
-        );
+        ActivateActiveItemServerRpc(slotIndex);
     }
-
 
     [ServerRpc]
-    private void ActivateActiveItemServerRpc(
-        int slotIndex
-    )
+    private void ActivateActiveItemServerRpc(int slotIndex)
     {
-        if (
-            slotIndex < 0 ||
-            slotIndex >= activeItems.Count
-        )
-        {
-            return ;
-        }
+        if (slotIndex < 0 || slotIndex >= activeItems.Count)
+            return;
 
-
-        bool success = activeItems[
-            slotIndex
-        ].TryActivate();
-
+        bool success = activeItems[slotIndex].TryActivate();
         NotifyActivationResultClientRpc(success);
     }
-
 
     [ClientRpc]
     private void NotifyActivationResultClientRpc(bool success)
     {
-        if(!IsOwner) return;
-        
-        if (success)
+        if (!IsOwner)
+            return;
+
+        Debug.Log(success ? "Active item activated." : "Active item is not ready.");
+    }
+
+    private void RegisterRuntime(
+        UpgradeData definition,
+        ItemRuntime runtime,
+        float remainingTime,
+        bool synchronize)
+    {
+        runtime.OnAcquire(this);
+        items.Add(new OwnedItem
         {
-            Debug.Log("技能释放成功");
+            Definition = definition,
+            Runtime = runtime,
+            RemainingTime = remainingTime
+        });
+
+        if (runtime.CanActivate)
+            activeItems.Add(runtime);
+
+        if (synchronize && IsServer && definition != null)
+            acquiredItemIds.Add(definition.NetworkId);
+
+        InventoryChanged?.Invoke();
+    }
+
+    private bool TryRegisterDefinition(
+        UpgradeData upgrade,
+        ItemAcquisitionSource source,
+        float? temporaryRemainingOverride)
+    {
+        if (!IsServer || upgrade == null)
+            return false;
+
+        if (!ItemAcquisitionPolicy.CanAcquire(upgrade, source))
+        {
+            Debug.LogWarning($"Item acquisition rejected: {upgrade.name}, source={source}");
+            return false;
         }
-        else
+
+        if (!upgrade.SupportsMode(CurrentMode))
+            return false;
+
+        if (upgrade.StackPolicy == ItemStackPolicy.Unique && Contains(upgrade.NetworkId))
+            return false;
+
+        ItemRuntime runtime = upgrade.CreateRuntime();
+        if (runtime == null)
+            return false;
+
+        float duration = upgrade.Category == ItemCategory.Temporary
+            ? Mathf.Max(0.01f, temporaryRemainingOverride ?? upgrade.TemporaryDuration)
+            : 0f;
+        RegisterRuntime(upgrade, runtime, duration, true);
+        return true;
+    }
+
+    private bool ShouldAdvanceGameplayTime()
+    {
+        if (CurrentMode != GameplayMode.Runner)
+            return true;
+
+        RunnerController runner = GetComponent<RunnerController>();
+        return runner == null ||
+               runner.Phase == PlayerRunPhase.Running ||
+               runner.Phase == PlayerRunPhase.Combat;
+    }
+
+    private void RemoveAt(int index)
+    {
+        OwnedItem entry = items[index];
+        entry.Runtime.OnRemove();
+        activeItems.Remove(entry.Runtime);
+        items.RemoveAt(index);
+
+        if (entry.Definition != null)
         {
-            Debug.Log("技能释放失败");
+            int syncedIndex = IndexOfSynced(entry.Definition.NetworkId);
+            if (syncedIndex >= 0)
+                acquiredItemIds.RemoveAt(syncedIndex);
+        }
+
+        InventoryChanged?.Invoke();
+    }
+
+    private bool Contains(int networkId)
+    {
+        for (int i = 0; i < items.Count; i++)
+        {
+            UpgradeData definition = items[i].Definition;
+            if (definition != null && definition.NetworkId == networkId)
+                return true;
+        }
+
+        return false;
+    }
+
+    private int IndexOfSynced(int networkId)
+    {
+        for (int i = 0; i < acquiredItemIds.Count; i++)
+        {
+            if (acquiredItemIds[i] == networkId)
+                return i;
+        }
+
+        return -1;
+    }
+
+    private void HandleModeChanged(GameplayMode previous, GameplayMode current)
+    {
+        for (int i = 0; i < items.Count; i++)
+            items[i].Runtime.OnModeChanged(previous, current);
+
+        RebuildActiveItems();
+        ModeChanged?.Invoke(current);
+    }
+
+    private void RebuildActiveItems()
+    {
+        activeItems.Clear();
+        for (int i = 0; i < items.Count; i++)
+        {
+            if (items[i].Runtime.CanActivate)
+                activeItems.Add(items[i].Runtime);
         }
     }
 
-    
+    private void HandleItemListChanged(NetworkListEvent<int> changeEvent)
+    {
+        InventoryChanged?.Invoke();
+    }
 }

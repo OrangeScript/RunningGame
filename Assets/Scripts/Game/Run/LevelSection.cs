@@ -1,6 +1,5 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+
 public enum SectionType
 {
     Run,
@@ -10,6 +9,11 @@ public enum SectionType
     Boss,
     Finish
 }
+
+/// <summary>
+/// A spawnable piece of a running lane. Authoring data lives on the prefab;
+/// deterministic runtime metadata is assigned by <see cref="SectionManager"/>.
+/// </summary>
 public class LevelSection : MonoBehaviour
 {
     [Header("Section")]
@@ -20,15 +24,48 @@ public class LevelSection : MonoBehaviour
     private Transform exitPoint;
     public SectionType Type => sectionType;
     public Transform ExitPoint => exitPoint;
-    // Start is called before the first frame update
-    void Start()
+
+    public bool HasRuntimePlan { get; private set; }
+    public int LaneIndex { get; private set; } = -1;
+    public int SequenceIndex { get; private set; } = -1;
+    public int ContentSeed { get; private set; }
+    public string DefinitionId { get; private set; } = string.Empty;
+    public Vector3 PlannedStartPosition { get; private set; }
+    public Quaternion PlannedStartRotation { get; private set; } = Quaternion.identity;
+
+    private void Awake()
     {
-        
+        if (Application.isPlaying) RunSectionPresentation.Build(this);
     }
 
-    // Update is called once per frame
-    void Update()
+    internal void ConfigureRuntime(
+        int laneIndex,
+        int sequenceIndex,
+        int contentSeed,
+        string definitionId,
+        Vector3 startPosition,
+        Quaternion startRotation)
     {
-        
+        HasRuntimePlan = true;
+        LaneIndex = laneIndex;
+        SequenceIndex = sequenceIndex;
+        ContentSeed = contentSeed;
+        DefinitionId = definitionId ?? string.Empty;
+        PlannedStartPosition = startPosition;
+        PlannedStartRotation = startRotation;
+    }
+
+    public bool TryGetExitPose(out Vector3 position, out Quaternion rotation)
+    {
+        if (exitPoint == null)
+        {
+            position = transform.position;
+            rotation = transform.rotation;
+            return false;
+        }
+
+        position = exitPoint.position;
+        rotation = exitPoint.rotation;
+        return true;
     }
 }

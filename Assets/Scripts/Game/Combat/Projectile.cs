@@ -21,6 +21,8 @@ public class Projectile : MonoBehaviour
     private float pierceRange;
 
     private ElementType element;
+    private int laneId = -1;
+    private bool visualOnly;
 
     [SerializeField] private ExplosionVFX explosionVFX;
     private Vector3 scale;
@@ -39,6 +41,8 @@ public class Projectile : MonoBehaviour
         this.speed = spec.speed;
         transform.localScale *= spec.sizeMultiplier;
         this.target = target;
+        laneId = target != null ? target.LaneId : -1;
+        visualOnly = false;
         element = spec.element;
         ApplyElementVisual(spec.element);
         this.destoryTime = lifeTime + Time.time;
@@ -52,6 +56,27 @@ public class Projectile : MonoBehaviour
 
         remainingPierces = spec.pierce;
         pierceRange = spec.pierceRange;
+        hitEnemies.Clear();
+    }
+
+    /// <summary>
+    /// Initializes a non-authoritative copy used only to show a server shot on
+    /// remote clients. It follows the replicated target but never applies hits.
+    /// </summary>
+    public void InitializeVisual(
+        float configuredSpeed,
+        float sizeMultiplier,
+        ElementType configuredElement,
+        Enemy configuredTarget)
+    {
+        speed = Mathf.Max(0.01f, configuredSpeed);
+        transform.localScale *= Mathf.Max(0.01f, sizeMultiplier);
+        target = configuredTarget;
+        laneId = target != null ? target.LaneId : -1;
+        element = configuredElement;
+        visualOnly = true;
+        ApplyElementVisual(element);
+        destoryTime = lifeTime + Time.time;
         hitEnemies.Clear();
     }
 
@@ -120,6 +145,12 @@ public class Projectile : MonoBehaviour
 
         if(direction.sqrMagnitude <= hitDistance * hitDistance)
         {
+            if (visualOnly)
+            {
+                Destroy(gameObject);
+                return;
+            }
+
             HitTarget();
             return;
         }
@@ -160,6 +191,7 @@ public class Projectile : MonoBehaviour
 
             if(enemy.IsDead) continue;
             if(enemy == target) continue;
+            if (laneId >= 0 && enemy.LaneId != laneId) continue;
             if(!enemies.Add(enemy)) continue;
 
             float explosionDamage = damage*explosionDamageMultiplier;
@@ -187,26 +219,15 @@ public class Projectile : MonoBehaviour
                     element,sourceDamage:damage
                 );
             }
-        //元素反应可能影响damage
-
-        damage *= reactionResult.damageMultiplier;
-        hitTarget.TakeDamage(damage,element);
+        // Reaction only changes this impact. Keeping the base damage immutable
+        // prevents a bounce chain from multiplying the damage again on every hit.
+        float hitDamage = damage * reactionResult.damageMultiplier;
+        hitTarget.TakeDamage(hitDamage,element);
 
         Explode(hitTarget.AimPosition);
 
-        if(remainingBounces <= 0)
-        {
-            Destroy(gameObject);
-            return;
-        }
-
-        Enemy nextTarget = FindBounceTarget();
-        if(nextTarget == null)
-        {
-            Destroy(gameObject);
-            return;
-        }
-            
+        // Pierce and bounce are independent modifiers. The old implementation
+        // required at least one bounce before pierce was even considered.
         if (remainingPierces > 0)
         {
             Enemy pierceTarget =
@@ -276,6 +297,9 @@ public class Projectile : MonoBehaviour
                 continue;
 
             if (enemy.IsDead)
+                continue;
+
+            if (laneId >= 0 && enemy.LaneId != laneId)
                 continue;
 
             if (hitEnemies.Contains(enemy))
@@ -355,6 +379,9 @@ public class Projectile : MonoBehaviour
 
 
             if (enemy.IsDead)
+                continue;
+
+            if (laneId >= 0 && enemy.LaneId != laneId)
                 continue;
 
 

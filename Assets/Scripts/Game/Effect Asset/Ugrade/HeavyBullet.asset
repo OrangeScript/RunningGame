@@ -12,7 +12,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e1ecbfdde894a8743bc2de4f4e0369ab, type: 3}
   m_Name: HeavyBullet
   m_EditorClassIdentifier: 
-  upgradeName: HeavyBullet
-  description: "\u8BA9\u5B50\u5F39\u53D8\u5F97\u5DE8\u5927"
+  networkId: 1003
+  upgradeName: "重型弹药"
+  description: "伤害 ×3，弹速减半，弹体变大。"
   icon: {fileID: 10901, guid: 0000000000000000f000000000000000, type: 0}
   effect: {fileID: 11400000, guid: b4b43c6498e120645a4a42886d7aadb0, type: 2}
+  category: 0
+  rarity: 1
+  stackPolicy: 0
+  supportedModes: 7
+  acquisitionSources: 7
+  temporaryDuration: 30
+  modeEffects: []

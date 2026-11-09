@@ -12,7 +12,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e1ecbfdde894a8743bc2de4f4e0369ab, type: 3}
   m_Name: Upgrade_Pierce
   m_EditorClassIdentifier: 
+  networkId: 1006
   upgradeName: "\u523A\u7A7F"
-  description: "\u7A7F\u523A\u4E00\u5207\u4FBF"
+  description: "弹丸可继续穿透前方的两个目标。"
   icon: {fileID: 10901, guid: 0000000000000000f000000000000000, type: 0}
   effect: {fileID: 11400000, guid: 9b48b30d801adc345b2aa3c1f27e673f, type: 2}
+  category: 0
+  rarity: 1
+  stackPolicy: 0
+  supportedModes: 7
+  acquisitionSources: 7
+  temporaryDuration: 30
+  modeEffects: []

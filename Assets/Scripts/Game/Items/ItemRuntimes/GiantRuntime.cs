@@ -41,16 +41,31 @@ public class GiantRuntime : ItemRuntime
         base.OnAcquire(owner);
 
         crowdVisualizer = owner.GetComponent<CrowdVisualizer>();
-        crowdVisualizer.SetGiantMode(true);
+        ApplyVisualMode(owner.CurrentMode);
+    }
 
+    public override void OnRemove()
+    {
+        if (crowdVisualizer != null)
+            crowdVisualizer.SetGiantMode(false);
 
+        base.OnRemove();
+    }
+
+    public override void OnModeChanged(GameplayMode previous, GameplayMode current)
+    {
+        ApplyVisualMode(current);
     }
 
 
     public override void ModifyAttack(AttackPlan plan)
     {
         base.ModifyAttack(plan);
-        plan.projectileCount = 1;
+        // Runner represents firepower with a crowd, while Arena/FPS use one
+        // avatar. Both keep the heavy-weapon identity without spawning clones.
+        if (plan.gameplayMode == GameplayMode.Runner)
+            plan.projectileCount = 1;
+
         plan.attackInterval *= attackIntervalMultiplier;
         plan.damageMultiplier *= damageMultiplier;
     }
@@ -65,6 +80,12 @@ public class GiantRuntime : ItemRuntime
         // 更慢
         spec.speed *=
             projectileSpeedMultiplier;
+    }
+
+    private void ApplyVisualMode(GameplayMode mode)
+    {
+        if (crowdVisualizer != null)
+            crowdVisualizer.SetGiantMode(mode == GameplayMode.Runner);
     }
 
 }

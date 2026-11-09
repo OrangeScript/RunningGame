@@ -1,41 +1,32 @@
-using System;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>Stable lane framing: lateral input moves the avatar, not the road.</summary>
 public class CameraFollow : MonoBehaviour
 {
     [SerializeField] private Transform target;
-
-    [SerializeField] private Vector3 offset = new Vector3(0f,7f,-9f);
-    [SerializeField] private float followSpeed = 8f;
-
-    internal void SetTarget(Transform transform)
+    private RunnerController runner;
+    private Vector3 velocity;
+    internal void SetTarget(Transform newTarget)
     {
-        target = transform;
+        target = newTarget;
+        runner = target != null ? target.GetComponent<RunnerController>() : null;
+        Follow(true);
     }
-
-    private void LateUpdate()
+    private void LateUpdate() => Follow(false);
+    private void Follow(bool snap)
     {
-        if(target == null)
+        if (target == null) return;
+        Vector3 center = new Vector3(runner != null ? runner.LaneCenterX : target.position.x,0,target.position.z);
+        Vector3 desired = center + new Vector3(0,18,-14);
+        bool teleported = (transform.position-desired).sqrMagnitude > 900;
+        transform.position = snap || teleported ? desired : Vector3.SmoothDamp(transform.position,desired,ref velocity,.14f);
+        transform.rotation = Quaternion.LookRotation(center + Vector3.forward*7 - transform.position);
+        var camera = GetComponent<Camera>();
+        if (camera != null)
         {
-            return;
+            camera.fieldOfView = 52;
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(.83f,.86f,.82f);
         }
-
-        Vector3 targetPosition = target.position + offset;
-
-        transform.position = Vector3.Lerp(
-            transform.position,
-            targetPosition,
-            followSpeed*Time.deltaTime
-        );
-        // transform.LookAt(target.position+Vector3.up);
-    }
-
-
-    // Update is called once per frame
-    void Update()
-    {
-        
     }
 }

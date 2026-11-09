@@ -14,14 +14,22 @@ public class AutoCombat : NetworkBehaviour
     [SerializeField] private PlayerStats stats;
     [SerializeField] private ItemManager itemManager;
     [SerializeField] private ProjectileArchetype archetype;
+    private RunnerController runner;
 
     [Header("Target")]
     [SerializeField] private LayerMask enemyLayer;
     private bool isFiring;
     float nextFireTime;
+
+    private void Awake()
+    {
+        runner = GetComponent<RunnerController>();
+    }
+
     void Update()
     {
         if(!IsServer) return;
+        if (runner != null && runner.Phase != PlayerRunPhase.Running && runner.Phase != PlayerRunPhase.Combat) return;
         if(crowd == null) return;
         if(crowd.Population <= 0) return;
         if(stats == null) return;
@@ -63,9 +71,10 @@ public class AutoCombat : NetworkBehaviour
 
         for(int i = 0; i< plan.projectileCount; i++)
         {
-            Transform shooter = GetShooter(i);
+            if (target == null || target.IsDead || !target.IsSpawned) break;
+            Transform shooter = firePoint != null ? firePoint : transform;
 
-            Vector3 spawnPosition = shooter.position+Vector3.up*0.5f+transform.forward*0.3f;
+            Vector3 spawnPosition = shooter.position + transform.right * ((i - (plan.projectileCount-1)*.5f) * .12f);
             float finalDamage = stats.Damage * plan.damageMultiplier;
             ProjectileSpec spec =  plan.projectileArchetype.CreateSpec(finalDamage);
             itemManager.ModifyProjectile(spec);
@@ -73,26 +82,48 @@ public class AutoCombat : NetworkBehaviour
 
             Projectile projectile = Instantiate(plan.projectileArchetype.ProjectilePrefab,spawnPosition,Quaternion.identity);
             projectile.Initialize(spec,target);
+            SpawnProjectileVisualClientRpc(
+                spawnPosition,
+                new NetworkObjectReference(target.NetworkObject),
+                spec.speed,
+                spec.sizeMultiplier,
+                (int)spec.element);
             yield return new WaitForSeconds(plan.shotSpacing);
         }
         isFiring = false;
 
     }
 
-
-
-    Transform GetShooter(int index)
+    [ClientRpc]
+    private void SpawnProjectileVisualClientRpc(
+        Vector3 spawnPosition,
+        NetworkObjectReference targetReference,
+        float projectileSpeed,
+        float sizeMultiplier,
+        int elementValue)
     {
-        if(crowdVisualizer.VisualUnitCount <= 0)
-            return firePoint;
-        
-        int visualIndex = index % crowdVisualizer.VisualUnitCount;
+        // The authoritative host already instantiated the gameplay projectile.
+        if (IsServer || archetype == null || archetype.ProjectilePrefab == null)
+            return;
 
-        Transform unit = crowdVisualizer.GetUnitTransform(visualIndex);
+        if (!targetReference.TryGet(out NetworkObject targetObject))
+            return;
 
-        return unit;
+        Enemy target = targetObject.GetComponent<Enemy>();
+        if (target == null || !System.Enum.IsDefined(typeof(ElementType), elementValue))
+            return;
 
+        Projectile visual = Instantiate(
+            archetype.ProjectilePrefab,
+            spawnPosition,
+            Quaternion.identity);
+        visual.InitializeVisual(
+            projectileSpeed,
+            sizeMultiplier,
+            (ElementType)elementValue,
+            target);
     }
+
 
 
     Enemy FindNearestEnemy(float attackRange)
@@ -112,6 +143,8 @@ public class AutoCombat : NetworkBehaviour
             Enemy enemy = hit.GetComponentInParent<Enemy>();
             if(enemy == null) continue;
             if(enemy.IsDead) continue;
+            if (runner != null && enemy.LaneId >= 0 && enemy.LaneId != runner.LaneId)
+                continue;
             float distanceSqr = (enemy.transform.position - transform.position).sqrMagnitude;
             if(distanceSqr < nearestEnemyDistance)
             {

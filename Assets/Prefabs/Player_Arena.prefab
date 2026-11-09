@@ -45,6 +45,8 @@ GameObject:
   - component: {fileID: 8928042041783428173}
   - component: {fileID: 3099703708032414324}
   - component: {fileID: 3831478997094811577}
+  - component: {fileID: 700000000000000001}
+  - component: {fileID: 700000000000000002}
   m_Layer: 0
   m_Name: Player_Arena
   m_TagString: Untagged
@@ -177,6 +179,50 @@ MonoBehaviour:
   m_DefaultActionMap: Arena
   m_SplitScreenIndex: -1
   m_Camera: {fileID: 0}
+--- !u!114 &700000000000000001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8267245726047798961}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f72c883fac2814f4dadbae2428989efa, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  inputReader: {fileID: 0}
+  motor: {fileID: 0}
+  remoteBuffer: {fileID: 0}
+  animatorDriver: {fileID: 0}
+  itemManager: {fileID: 700000000000000002}
+  inputSendRate: 30
+  maxAcceptedInputsPerSecond: 45
+  inputTimeout: 0.35
+  snapshotSendRate: 15
+  firePoint: {fileID: 0}
+  projectilePrefab: {fileID: 0}
+  baseShotsPerSecond: 5
+  baseProjectileDamage: 1
+  baseProjectileSpeed: 18
+  projectileLifetime: 3
+  maxProjectilesPerShot: 8
+  projectileSpreadDegrees: 5
+  maxHealth: 10
+  teamId: 1
+--- !u!114 &700000000000000002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8267245726047798961}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7ce19cb70ec66714984a52b56eb1f7cd, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  startingMode: 1
 --- !u!1001 &6561689116488436786
 PrefabInstance:
   m_ObjectHideFlags: 0

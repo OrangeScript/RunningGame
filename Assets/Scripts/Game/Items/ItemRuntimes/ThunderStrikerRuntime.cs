@@ -36,7 +36,13 @@ public class ThunderStrikerRuntime : ActiveAttackItemRuntime
 
     protected override bool TryAttack()
     {
+        if (owner != null && owner.CurrentMode == GameplayMode.BossArena)
+            return TryAttackArenaBoss();
+
         Enemy[] targets = FindEnemies();
+        if (targets.Length == 0)
+            return false;
+
         foreach(Enemy target in targets)
         {
             ReactionResult reaction = target.ApplyElement(ElementType.Lightning,
@@ -49,8 +55,32 @@ public class ThunderStrikerRuntime : ActiveAttackItemRuntime
         return true;
     }
 
+    private bool TryAttackArenaBoss()
+    {
+        ArenaBossController boss = Object.FindFirstObjectByType<ArenaBossController>();
+        if (boss == null || !boss.IsArenaAlive)
+            return false;
+
+        Vector3 origin = owner != null ? owner.transform.position : Vector3.zero;
+        Vector3 direction = boss.transform.position - origin;
+        direction.y = 0f;
+        if (direction.sqrMagnitude < 0.001f)
+            direction = Vector3.forward;
+
+        boss.ApplyArenaDamage(new ArenaDamageInfo(
+            damage,
+            1,
+            owner.OwnerClientId,
+            boss.transform.position,
+            direction.normalized));
+        return true;
+    }
+
     Enemy[] FindEnemies()
     {
+        RunnerController runner = owner != null
+            ? owner.GetComponent<RunnerController>()
+            : null;
         Collider[] colliders = Physics.OverlapSphere(
             owner.transform.position,
                 range,
@@ -58,6 +88,7 @@ public class ThunderStrikerRuntime : ActiveAttackItemRuntime
                 QueryTriggerInteraction.Collide
         );
         List<Enemy> enemies = new();
+        HashSet<Enemy> uniqueEnemies = new HashSet<Enemy>();
         foreach(Collider hit in colliders)
         {
             Enemy enemy =
@@ -68,6 +99,10 @@ public class ThunderStrikerRuntime : ActiveAttackItemRuntime
                 continue;
 
             if (enemy.IsDead)
+                continue;
+            if (runner != null && enemy.LaneId >= 0 && enemy.LaneId != runner.LaneId)
+                continue;
+            if (!uniqueEnemies.Add(enemy))
                 continue;
             enemies.Add(enemy);
         }

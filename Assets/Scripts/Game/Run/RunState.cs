@@ -9,5 +9,17 @@ public enum RunState
     Combat,
     UpgradeSelection,
     GameOver,
-    Victory
+    Victory,
+    MapSelection,
+    BossTransition
+}
+
+public enum PlayerRunPhase : byte
+{
+    Lobby,
+    Running,
+    Combat,
+    RewardChoice,
+    WaitingAtExit,
+    Eliminated
 }

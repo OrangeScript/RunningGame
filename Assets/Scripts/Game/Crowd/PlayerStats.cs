@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 //  “如果玩家现在什么特殊道具都没有，这轮攻击应该是什么样？”
@@ -11,8 +9,8 @@ public class PlayerStats : MonoBehaviour
 
     [Header("Attack")]
     [SerializeField] float baseAttackInterval = 0.5f;
-    [SerializeField] float baseDamage = 1f;
-    [SerializeField] float baseAttackRange = .05f;
+    [SerializeField] float baseDamage = 4f;
+    [SerializeField] float baseAttackRange = 15f;
 
 
 
@@ -27,6 +25,7 @@ public class PlayerStats : MonoBehaviour
     int extraProjectiles = 0;
 
 
+    public float MoveSpeed => moveSpeed;
     public float Damage => baseDamage;
     public float AttackInterval => baseAttackInterval / attackSpeedMultiplier;
     public float AttackRange => baseAttackRange + attackRadiusBonus;
@@ -40,29 +39,27 @@ public class PlayerStats : MonoBehaviour
     public AttackPlan CreateAttackPlan(int population,ProjectileArchetype archetype)
     {
         
-        int projectileCount =
-            Mathf.CeilToInt(
-                population /
-                (float)basePopulationPerProjectile
-            );
+        // Gates increase one character's weapon damage, not the number of
+        // bodies or shooters. Multishot is reserved for item modifiers.
+        int projectileCount = 1;
 
         projectileCount =
             Mathf.Clamp(
                 projectileCount,
                 1,
-                baseMaxProjectilesPerVolley
+                MaxProjectilesPerVolley
             );
 
 
         return new AttackPlan
         {
-            damageMultiplier = 1f,
+            damageMultiplier = Mathf.Clamp(population / 20f, 0.1f, 50f),
 
             attackInterval =
-                baseAttackInterval,
+                AttackInterval,
 
             attackRange =
-                baseAttackRange,
+                AttackRange,
 
             projectileCount =
                 projectileCount,
@@ -72,6 +69,26 @@ public class PlayerStats : MonoBehaviour
 
             projectileArchetype = archetype
         };
+    }
+
+    public void AddAttackSpeedMultiplier(float amount)
+    {
+        attackSpeedMultiplier = Mathf.Max(0.05f, attackSpeedMultiplier + amount);
+    }
+
+    public void AddAttackRange(float amount)
+    {
+        attackRadiusBonus += amount;
+    }
+
+    public void AddProjectileEfficiency(int populationReduction)
+    {
+        projectilePopulationBonus += populationReduction;
+    }
+
+    public void AddMaxProjectiles(int amount)
+    {
+        extraProjectiles = Mathf.Max(-baseMaxProjectilesPerVolley + 1, extraProjectiles + amount);
     }
 
 

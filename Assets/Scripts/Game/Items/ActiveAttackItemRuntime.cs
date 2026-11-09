@@ -32,7 +32,9 @@ public abstract class ActiveAttackItemRuntime : ItemRuntime
 
 
     public bool IsReady => remainingCooldown <= 0f;
-    public bool TryActivate()
+    public override bool CanActivate => true;
+
+    public override bool TryActivate()
     {
         if(!IsReady) return false;
         if(!TryAttack()) return false;

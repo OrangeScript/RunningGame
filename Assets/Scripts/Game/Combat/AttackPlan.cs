@@ -4,6 +4,7 @@ using UnityEngine;
 
 public class AttackPlan
 {
+    public GameplayMode gameplayMode = GameplayMode.Runner;
     public float damageMultiplier;
     public float attackInterval;
     public float attackRange;

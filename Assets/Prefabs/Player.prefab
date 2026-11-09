@@ -137,7 +137,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   forwardSpeed: 4
   horizontalSpeed: 7
-  xLimit: 4
+  xLimit: 7.25
 --- !u!114 &1214762496214609139
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -181,7 +181,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ba77b43243061074bbc0cedc21303e67, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  startingPopulation: 1
+  startingPopulation: 20
 --- !u!114 &4190755959432121557
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -229,8 +229,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   moveSpeed: 2
   baseAttackInterval: 0.5
-  baseDamage: 1
-  baseAttackRange: 9.27
+  baseDamage: 4
+  baseAttackRange: 15
   basePopulationPerProjectile: 5
   baseMaxProjectilesPerVolley: 12
   baseShotSpacing: 0.04
@@ -250,11 +250,6 @@ MonoBehaviour:
   crowdRoot: {fileID: 3519768884365891905}
   unitPrefab: {fileID: 1149814100459273599, guid: fec5b41c416f4ff4f8f9261124fc202b,
     type: 3}
-  maxVisualUnits: 80
-  spacing: 0.8
-  normalUnitY: 0.5
-  giantScaleMultiplier: 4
-  giantUnitY: 1.5
 --- !u!114 &1558330507874597688
 MonoBehaviour:
   m_ObjectHideFlags: 0

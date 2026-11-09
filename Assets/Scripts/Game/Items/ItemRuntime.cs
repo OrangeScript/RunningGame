@@ -4,10 +4,22 @@ using UnityEngine;
 
 public abstract class ItemRuntime
 {
+    protected ItemManager Owner { get; private set; }
+
+    public virtual bool CanActivate => false;
 
     public virtual void OnAcquire(ItemManager owner)
     {
-        
+        Owner = owner;
+    }
+
+    public virtual void OnRemove()
+    {
+        Owner = null;
+    }
+
+    public virtual void OnModeChanged(GameplayMode previous, GameplayMode current)
+    {
     }
 
     public virtual void Tick(float deltaTime)
@@ -22,6 +34,11 @@ public abstract class ItemRuntime
     public virtual void ModifyAttack(AttackPlan plan)
     {
         
+    }
+
+    public virtual bool TryActivate()
+    {
+        return false;
     }
 
 }

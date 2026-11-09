@@ -12,7 +12,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e1ecbfdde894a8743bc2de4f4e0369ab, type: 3}
   m_Name: UpgradeData
   m_EditorClassIdentifier: 
-  upgradeName: "\u5DE8\u5927\u5316"
-  description: 
+  networkId: 1001
+  upgradeName: "重炮核心"
+  description: "伤害 ×10，攻击间隔 ×3，弹体更大、弹速更慢。"
   icon: {fileID: 0}
   effect: {fileID: 11400000, guid: c4d8888c2616b784db70aca60ff43d4c, type: 2}
+  category: 0
+  rarity: 3
+  stackPolicy: 1
+  supportedModes: 7
+  acquisitionSources: 2
+  temporaryDuration: 30
+  modeEffects: []

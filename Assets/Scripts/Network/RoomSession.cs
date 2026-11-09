@@ -2,7 +2,6 @@ using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using Unity.Netcode;
-using Unity.VisualScripting.Dependencies.Sqlite;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -43,9 +42,12 @@ public class RoomSession : MonoBehaviour
         Playing
     }
 
-    private GameMode selectedMode = GameMode.Arena;
+    private GameMode selectedMode = GameMode.Running;
     RoomPhase phase = RoomPhase.Menu;
     bool soloRunning;
+    private readonly Dictionary<ulong, PlayerItemSnapshot[]> preservedBuilds =
+        new Dictionary<ulong, PlayerItemSnapshot[]>();
+    private readonly Dictionary<ulong, int> preservedFirepower = new Dictionary<ulong, int>();
 
 
 
@@ -56,6 +58,7 @@ public class RoomSession : MonoBehaviour
         if(networkManager == null) 
         networkManager = GetComponent<NetworkManager>();
         DontDestroyOnLoad(this);
+        BuildMinimalMenu();
     }
 
     void Start()
@@ -181,7 +184,7 @@ public class RoomSession : MonoBehaviour
     private void ApprovalCheck(NetworkManager.ConnectionApprovalRequest request,
                                 NetworkManager.ConnectionApprovalResponse response)
     {
-        int maxPlayers = soloRunning ? 1 : selectedMode == GameMode.Arena ? 2 : 4;
+        int maxPlayers = soloRunning ? 1 : 4;
         bool allowed = phase == RoomPhase.Lobby && networkManager.ConnectedClientsIds.Count < maxPlayers;
         response.Approved = allowed;
 
@@ -194,7 +197,7 @@ public class RoomSession : MonoBehaviour
     {
         if(!networkManager.IsServer || phase != RoomPhase.Lobby) return;
         int count = networkManager.ConnectedClientsIds.Count;
-        bool enoughPlayers = selectedMode == GameMode.Arena ? count == 2 : count >= (soloRunning ? 1:2);
+        bool enoughPlayers = count >= (soloRunning ? 1 : 2);
         if (!enoughPlayers)
         {
             SetStatus("人数不足");
@@ -210,6 +213,26 @@ public class RoomSession : MonoBehaviour
             phase = RoomPhase.Lobby;
             SetStatus("加载失败");
         }
+    }
+
+    public bool TransitionToBossArena()
+    {
+        if (!networkManager.IsServer || phase != RoomPhase.Playing)
+            return false;
+
+        CapturePlayerBuilds();
+        selectedMode = GameMode.Arena;
+        phase = RoomPhase.Loading;
+        SceneEventProgressStatus result = networkManager.SceneManager.LoadScene(
+            arenaScene,
+            LoadSceneMode.Single);
+
+        if (result == SceneEventProgressStatus.Started)
+            return true;
+
+        phase = RoomPhase.Playing;
+        Debug.LogError($"Boss Arena load failed: {result}");
+        return false;
     }
 
     private void OnSceneLoaded(
@@ -248,6 +271,9 @@ public class RoomSession : MonoBehaviour
             Debug.LogError("玩家生成失败，无法开始游戏");
             return;
         }
+
+        if (isArena)
+            RestorePlayerBuildsForArena();
 
         if (isRunning)
         {
@@ -299,6 +325,18 @@ public class RoomSession : MonoBehaviour
             return false;
         }
 
+        // A mode pawn is scene-local. Explicitly remove a stale PlayerObject
+        // before replacing it so a RunLoop -> Arena transition cannot leave a
+        // hidden Runner updating in the new scene.
+        foreach (ulong clientId in clientIds)
+        {
+            NetworkObject existing = networkManager.ConnectedClients[clientId].PlayerObject;
+            if (existing != null && existing.IsSpawned)
+            {
+                existing.Despawn(true);
+            }
+        }
+
         for (int i = 0; i < clientIds.Count; i++)
         {
             if (!spawns.TryGetSpawn(
@@ -311,10 +349,18 @@ public class RoomSession : MonoBehaviour
 
             ulong clientId = clientIds[i];
 
+            // Legacy Arena spawn_1 is outside the runtime arena wall. Use
+            // compact, centered co-op spawns inside the playable bounds.
+            if (selectedMode == GameMode.Arena)
+            {
+                position = new Vector3((i - (clientIds.Count - 1) * .5f) * 3f,0,-6f);
+                rotation = Quaternion.identity;
+            }
+
             NetworkObject player =
                 Instantiate(prefab, position, rotation);
 
-            player.SpawnAsPlayerObject(clientId);
+            player.SpawnAsPlayerObject(clientId, true);
 
             Debug.Log(
                 $"Spawn Player: Client={clientId}, " +
@@ -322,6 +368,51 @@ public class RoomSession : MonoBehaviour
         }
 
         return true;
+    }
+
+    private void CapturePlayerBuilds()
+    {
+        preservedBuilds.Clear();
+        preservedFirepower.Clear();
+        foreach (KeyValuePair<ulong, NetworkClient> pair in networkManager.ConnectedClients)
+        {
+            NetworkObject playerObject = pair.Value.PlayerObject;
+            ItemManager itemManager = playerObject != null
+                ? playerObject.GetComponent<ItemManager>()
+                : null;
+            preservedBuilds[pair.Key] = itemManager != null
+                ? itemManager.CaptureBuildSnapshot()
+                : System.Array.Empty<PlayerItemSnapshot>();
+            CrowdManager runnerStats = playerObject != null ? playerObject.GetComponent<CrowdManager>() : null;
+            preservedFirepower[pair.Key] = runnerStats != null ? runnerStats.Firepower : 20;
+        }
+    }
+
+    private void RestorePlayerBuildsForArena()
+    {
+        foreach (KeyValuePair<ulong, NetworkClient> pair in networkManager.ConnectedClients)
+        {
+            NetworkObject playerObject = pair.Value.PlayerObject;
+            if (playerObject == null)
+                continue;
+
+            if (preservedFirepower.TryGetValue(pair.Key, out int firepower))
+                playerObject.GetComponent<ArenaPlayerNetwork>()?.SetRunFirepowerServer(firepower);
+
+            ItemManager itemManager = playerObject.GetComponent<ItemManager>();
+            if (itemManager == null)
+            {
+                Debug.LogError($"Arena player {pair.Key} is missing ItemManager.");
+                continue;
+            }
+
+            itemManager.SetGameplayModeServer(GameplayMode.BossArena);
+            if (!preservedBuilds.TryGetValue(pair.Key, out PlayerItemSnapshot[] build))
+                continue;
+
+            for (int index = 0; index < build.Length; index++)
+                itemManager.TryRestoreServer(build[index]);
+        }
     }
 
 
@@ -361,8 +452,8 @@ public class RoomSession : MonoBehaviour
     void UpdateModeText()
     {
         modeText.text = selectedMode == GameMode.Arena
-                ? "Arena 枪战"
-                : "数字跑酷";
+                ? "首领练习"
+                : "跑酷旅程";
     }
 
     void UpdateLobbyUI()
@@ -379,16 +470,12 @@ public class RoomSession : MonoBehaviour
 
         int count = networkManager.ConnectedClientsIds.Count;
 
-        int maxPlayers = soloRunning
-            ? 1
-            : selectedMode == GameMode.Arena ? 2 : 4;
+        int maxPlayers = soloRunning ? 1 : 4;
 
         if (playerCountText != null)
             playerCountText.text = $"{count} / {maxPlayers}";
 
-        bool canStart = selectedMode == GameMode.Arena
-            ? count == 2
-            : count >= (soloRunning ? 1 : 2);
+        bool canStart = count >= (soloRunning ? 1 : 2);
 
         if (startMatchButton != null)
         {
@@ -405,6 +492,54 @@ public class RoomSession : MonoBehaviour
     {
         if (statusText != null)
             statusText.text = message;
+    }
+
+    private void BuildMinimalMenu()
+    {
+        if (networkUIRoot != null)
+        {
+            Canvas legacyCanvas = networkUIRoot.GetComponentInParent<Canvas>();
+            if (legacyCanvas != null) legacyCanvas.gameObject.SetActive(false);
+            else networkUIRoot.SetActive(false);
+        }
+        networkUIRoot = MinimalUI.Canvas(transform,"SessionCanvas",20);
+        var background = MinimalUI.Box(networkUIRoot.transform,"MenuPaper",MinimalUI.Paper,true);
+        var eyebrow = MinimalUI.Text(background,"Eyebrow","R U N N I N G",16,MinimalUI.Muted);
+        MinimalUI.Place(eyebrow.rectTransform,new Vector2(.15f,.76f),new Vector2(.85f,.82f));
+        var title = MinimalUI.Text(background,"Title","开始一段行程",42);
+        MinimalUI.Place(title.rectTransform,new Vector2(.15f,.62f),new Vector2(.90f,.76f));
+        var subtitle = MinimalUI.Text(background,"Subtitle","单人出发，或与队友一起选择路线。",19,MinimalUI.Muted);
+        MinimalUI.Place(subtitle.rectTransform,new Vector2(.15f,.55f),new Vector2(.90f,.63f));
+        mainMenuPanel = new GameObject("MainMenu",typeof(RectTransform));
+        mainMenuPanel.transform.SetParent(background,false);
+        MinimalUI.Stretch((RectTransform)mainMenuPanel.transform);
+        MenuButton(mainMenuPanel.transform,"Solo","独自出发",.15f,StartSoloRunning,true);
+        MenuButton(mainMenuPanel.transform,"Create","创建房间",.39f,CreateRoom);
+        MenuButton(mainMenuPanel.transform,"Join","加入房间",.63f,JoinRoom);
+        lobbyPanel = new GameObject("Lobby",typeof(RectTransform));
+        lobbyPanel.transform.SetParent(background,false);
+        MinimalUI.Stretch((RectTransform)lobbyPanel.transform);
+        modeText = MinimalUI.Text(lobbyPanel.transform,"Mode","",19);
+        MinimalUI.Place(modeText.rectTransform,new Vector2(.15f,.43f),new Vector2(.51f,.5f));
+        playerCountText = MinimalUI.Text(lobbyPanel.transform,"Players","",19,MinimalUI.Muted,TextAlignmentOptions.MidlineRight);
+        MinimalUI.Place(playerCountText.rectTransform,new Vector2(.59f,.43f),new Vector2(.85f,.5f));
+        startMatchButton = MenuButton(lobbyPanel.transform,"Start","开始行程",.15f,StartMatch,true);
+        MenuButton(lobbyPanel.transform,"RunningMode","跑酷旅程",.39f,SelectRunning);
+        MenuButton(lobbyPanel.transform,"ArenaMode","首领练习",.63f,SelectArena);
+        var leave = MinimalUI.Button(lobbyPanel.transform,"Leave","返回",LeaveRoom);
+        MinimalUI.Place((RectTransform)leave.transform,new Vector2(.15f,.17f),new Vector2(.24f,.22f));
+        statusText = MinimalUI.Text(background,"Status","",16,MinimalUI.Muted);
+        MinimalUI.Place(statusText.rectTransform,new Vector2(.15f,.24f),new Vector2(.85f,.30f));
+        MinimalUI.Rule(background,.13f);
+        var footer = MinimalUI.Text(background,"Footer","单人  /  2–4 人联机",15,MinimalUI.Muted);
+        MinimalUI.Place(footer.rectTransform,new Vector2(.15f,.05f),new Vector2(.85f,.12f));
+    }
+
+    private static Button MenuButton(Transform parent,string name,string label,float x,UnityEngine.Events.UnityAction action,bool primary=false)
+    {
+        var button = MinimalUI.Button(parent,name,label,action,primary);
+        MinimalUI.Place((RectTransform)button.transform,new Vector2(x,.33f),new Vector2(x+.22f,.41f));
+        return button;
     }
 
 

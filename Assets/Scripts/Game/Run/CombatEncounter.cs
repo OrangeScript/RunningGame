@@ -1,8 +1,5 @@
-using System;
-using System.Collections;
 using System.Collections.Generic;
 using Unity.Netcode;
-using Unity.VisualScripting;
 using UnityEngine;
 
 
@@ -21,7 +18,15 @@ public class CombatEncounter : NetworkBehaviour
     private Enemy enemyPrefab;
 
     [SerializeField]
+    private Enemy[] enemyVariants;
+
+    [SerializeField]
     private Transform[] spawnPoints;
+
+    [Header("Procedural Encounter")]
+    [SerializeField, Min(1f)] private float baseSpawnBudget = 3f;
+    [SerializeField, Min(1)] private int maximumEnemies = 10;
+    [SerializeField, Min(0f)] private float spawnJitter = 1.6f;
 
 
     [Header("Barriers")]
@@ -40,6 +45,15 @@ public class CombatEncounter : NetworkBehaviour
     private bool cleared;
 
     private bool finished;
+    private RunnerController participant;
+    private int contentSeed;
+    private int laneId = -1;
+    private float difficulty = 1f;
+    private bool configured;
+
+    private readonly NetworkVariable<int> replicatedSeed = new NetworkVariable<int>();
+    private readonly NetworkVariable<int> replicatedLaneId = new NetworkVariable<int>(-1);
+    private readonly NetworkVariable<float> replicatedDifficulty = new NetworkVariable<float>(1f);
 
     private NetworkVariable<bool>
         barriersActive =
@@ -55,6 +69,8 @@ public class CombatEncounter : NetworkBehaviour
     public bool IsFinished =>
         finished;
 
+    public int LaneId => laneId;
+
     void Awake()
     {
         BoxCollider trigger = GetComponent<BoxCollider>();
@@ -66,6 +82,22 @@ public class CombatEncounter : NetworkBehaviour
         gameManager = GameManager.instance;
         barriersActive.OnValueChanged += HandleBarrierChanged;
         HandleBarrierChanged(false,barriersActive.Value);
+
+        if (IsServer && !configured)
+        {
+            LevelSection section = GetComponentInParent<LevelSection>();
+            int fallbackSeed = section != null && section.HasRuntimePlan
+                ? section.ContentSeed
+                : ProceduralRandom.Derive(gameObject.scene.buildIndex, transform.GetSiblingIndex());
+            int fallbackLane = section != null ? section.LaneIndex : -1;
+            ConfigureServer(fallbackSeed, fallbackLane, 1f);
+        }
+        else if (!IsServer)
+        {
+            contentSeed = replicatedSeed.Value;
+            laneId = replicatedLaneId.Value;
+            difficulty = replicatedDifficulty.Value;
+        }
         
     }
 
@@ -83,6 +115,9 @@ public class CombatEncounter : NetworkBehaviour
 
     private void HandleBarrierChanged(bool previousValue, bool newValue)
     {
+        if (barriers == null)
+            return;
+
         foreach (
             GameObject barrier
             in barriers
@@ -98,6 +133,45 @@ public class CombatEncounter : NetworkBehaviour
         }
     }
 
+    public void ConfigureServer(int seed, int configuredLaneId, float configuredDifficulty)
+    {
+        if (!IsServer)
+            return;
+
+        configured = true;
+        contentSeed = seed;
+        laneId = configuredLaneId;
+        difficulty = Mathf.Max(0.25f, configuredDifficulty);
+        replicatedSeed.Value = contentSeed;
+        replicatedLaneId.Value = laneId;
+        replicatedDifficulty.Value = difficulty;
+
+        LaneScope scope = GetComponent<LaneScope>();
+        if (scope == null)
+            scope = gameObject.AddComponent<LaneScope>();
+        scope.Configure(laneId);
+    }
+
+    public void BuildObstacleFieldServer(int seed, int configuredLaneId, float configuredDifficulty)
+    {
+        if (!IsServer)
+            return;
+
+        Transform root = ResolveSectionRoot();
+        ProceduralObstacleField.Build(root, seed, configuredLaneId, configuredDifficulty, true);
+        BuildObstacleFieldClientRpc(seed, configuredLaneId, configuredDifficulty);
+    }
+
+    [ClientRpc]
+    private void BuildObstacleFieldClientRpc(int seed, int configuredLaneId, float configuredDifficulty)
+    {
+        if (IsServer)
+            return;
+
+        ProceduralObstacleField.Build(
+            ResolveSectionRoot(), seed, configuredLaneId, configuredDifficulty, false);
+    }
+
     public void FinishEncounter()
     {
         if (finished)
@@ -111,6 +185,24 @@ public class CombatEncounter : NetworkBehaviour
         SetBarriers(
             false
         );
+
+        if (IsServer)
+        {
+            for (int i = aliveEnemies.Count - 1; i >= 0; i--)
+            {
+                Enemy enemy = aliveEnemies[i];
+                if (enemy == null)
+                    continue;
+
+                enemy.Died -= HandleEnemyDied;
+                if (enemy.NetworkObject != null && enemy.NetworkObject.IsSpawned)
+                    enemy.NetworkObject.Despawn(true);
+                else
+                    Destroy(enemy.gameObject);
+            }
+
+            aliveEnemies.Clear();
+        }
 
 
         Debug.Log(
@@ -129,26 +221,6 @@ public class CombatEncounter : NetworkBehaviour
     }
 
 
-    // ========================================
-    // Cleanup
-    // ========================================
-
-    // private void OnDestroy()
-    // {
-    //     foreach (
-    //         Enemy enemy
-    //         in aliveEnemies
-    //     )
-    //     {
-    //         if (enemy != null)
-    //         {
-    //             enemy.Died -=
-    //                 HandleEnemyDied;
-    //         }
-    //     }
-    // }
-
-    // Start is called before the first frame update
     void Start()
     {
         gameManager = GameManager.instance;
@@ -173,8 +245,14 @@ public class CombatEncounter : NetworkBehaviour
         if (player == null)
             return;
 
+        // Parallel roads can be physically close enough for a large player
+        // collider to brush a neighbouring encounter trigger. Never let one
+        // lane claim another lane's encounter/runner pair.
+        if (laneId >= 0 && player.LaneId != laneId)
+            return;
 
-        BeginEncounter();
+
+        BeginEncounter(player);
     }
 
 
@@ -182,9 +260,12 @@ public class CombatEncounter : NetworkBehaviour
     // Begin
     // ========================================
 
-    public void BeginEncounter()
+    public void BeginEncounter(RunnerController runner)
     {
-        if (started)
+        if (!IsServer || started || runner == null)
+            return;
+
+        if (laneId >= 0 && runner.LaneId != laneId)
             return;
 
 
@@ -198,8 +279,11 @@ public class CombatEncounter : NetworkBehaviour
         }
 
 
-        started =
-            true;
+        if (!gameManager.BeginCombat(this, runner))
+            return;
+
+        participant = runner;
+        started = true;
 
 
         Debug.Log(
@@ -209,11 +293,6 @@ public class CombatEncounter : NetworkBehaviour
 
         SetBarriers(
             true
-        );
-
-
-        gameManager.BeginCombat(
-            this
         );
 
 
@@ -230,7 +309,7 @@ public class CombatEncounter : NetworkBehaviour
         aliveEnemies.Clear();
 
 
-        if (enemyPrefab == null)
+        if (enemyPrefab == null && (enemyVariants == null || enemyVariants.Length == 0))
         {
             Debug.LogError(
                 $"{name} 没有配置 Enemy Prefab"
@@ -240,22 +319,45 @@ public class CombatEncounter : NetworkBehaviour
         }
 
 
-        foreach (
-            Transform spawnPoint
-            in spawnPoints
-        )
+        var random = new ProceduralRandom(contentSeed);
+        float remainingBudget = Mathf.Max(1f, baseSpawnBudget * difficulty);
+        int spawnedCount = 0;
+
+        while (remainingBudget >= 0.75f && spawnedCount < maximumEnemies)
         {
-            if (spawnPoint == null)
-                continue;
+            EnemyArchetype archetype = SelectArchetype(ref random, difficulty);
+            float cost = GetArchetypeCost(archetype);
+            if (cost > remainingBudget && spawnedCount > 0)
+                break;
+
+            Enemy prefab = SelectEnemyPrefab(ref random);
+            if (prefab == null)
+                break;
+
+            GetSpawnPose(ref random, spawnedCount, out Vector3 position, out Quaternion rotation);
 
 
             Enemy enemy =
                 Instantiate(
-                    enemyPrefab,
-                    spawnPoint.position,
-                    spawnPoint.rotation
+                    prefab,
+                    position,
+                    rotation
                 );
+            enemy.ConfigureServer(
+                ProceduralRandom.Derive(contentSeed, spawnedCount, laneId),
+                laneId,
+                difficulty,
+                archetype);
             NetworkObject networkObject = enemy.GetComponent<NetworkObject>();
+            if (networkObject == null)
+            {
+                Debug.LogError($"{enemy.name} is missing NetworkObject.");
+                Destroy(enemy.gameObject);
+                spawnedCount++;
+                remainingBudget -= cost;
+                continue;
+            }
+
             networkObject.Spawn(true);
 
             enemy.Died +=
@@ -265,6 +367,9 @@ public class CombatEncounter : NetworkBehaviour
             aliveEnemies.Add(
                 enemy
             );
+
+            spawnedCount++;
+            remainingBudget -= cost;
         }
 
 
@@ -282,6 +387,78 @@ public class CombatEncounter : NetworkBehaviour
         }
     }
 
+    private Enemy SelectEnemyPrefab(ref ProceduralRandom random)
+    {
+        if (enemyVariants != null && enemyVariants.Length > 0)
+        {
+            int start = random.Range(0, enemyVariants.Length);
+            for (int offset = 0; offset < enemyVariants.Length; offset++)
+            {
+                Enemy candidate = enemyVariants[(start + offset) % enemyVariants.Length];
+                if (candidate != null)
+                    return candidate;
+            }
+        }
+
+        return enemyPrefab;
+    }
+
+    private EnemyArchetype SelectArchetype(ref ProceduralRandom random, float encounterDifficulty)
+    {
+        float roll = random.Range(0f, 1f);
+        float advancedChance = Mathf.InverseLerp(0.75f, 3.5f, encounterDifficulty);
+
+        if (roll < 0.38f - advancedChance * 0.12f)
+            return EnemyArchetype.Chaser;
+        if (roll < 0.66f)
+            return EnemyArchetype.Strafer;
+        if (roll < 0.82f + advancedChance * 0.08f)
+            return EnemyArchetype.Charger;
+        return EnemyArchetype.Ranged;
+    }
+
+    private static float GetArchetypeCost(EnemyArchetype archetype)
+    {
+        return archetype switch
+        {
+            EnemyArchetype.Charger => 1.6f,
+            EnemyArchetype.Ranged => 1.35f,
+            EnemyArchetype.Strafer => 1.1f,
+            _ => 1f
+        };
+    }
+
+    private void GetSpawnPose(
+        ref ProceduralRandom random,
+        int index,
+        out Vector3 position,
+        out Quaternion rotation)
+    {
+        Transform point = null;
+        if (spawnPoints != null && spawnPoints.Length > 0)
+            point = spawnPoints[index % spawnPoints.Length];
+
+        if (point != null)
+        {
+            position = point.position;
+            rotation = point.rotation;
+        }
+        else
+        {
+            position = transform.position + transform.forward * (4f + index * 1.4f);
+            rotation = transform.rotation;
+        }
+
+        position += transform.right * random.Range(-spawnJitter, spawnJitter);
+        position += transform.forward * random.Range(-0.6f, 0.6f);
+    }
+
+    private Transform ResolveSectionRoot()
+    {
+        LevelSection section = GetComponentInParent<LevelSection>();
+        return section != null ? section.transform : transform.root;
+    }
+
 
     // ========================================
     // Death
@@ -291,7 +468,6 @@ public class CombatEncounter : NetworkBehaviour
         Enemy enemy
     )
     {
-        //TODO: why 不清除敌人呢？为什么只有服务器处理？
         if(!IsServer) return;
         if (enemy == null)
             return;
@@ -335,14 +511,7 @@ public class CombatEncounter : NetworkBehaviour
         );
 
 
-        gameManager.CompleteCombat(
-            this
-        );
+        gameManager.CompleteCombat(this, participant);
     }
 
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
 }

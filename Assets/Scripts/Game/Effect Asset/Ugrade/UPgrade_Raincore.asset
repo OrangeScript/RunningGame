@@ -12,7 +12,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e1ecbfdde894a8743bc2de4f4e0369ab, type: 3}
   m_Name: UPgrade_Raincore
   m_EditorClassIdentifier: 
-  upgradeName: "\u4E0B\u96E8\u4E86"
-  description: "\u4E0B\u96E8\u4E86\u554A"
+  networkId: 1007
+  upgradeName: "雨核"
+  description: "每 10 秒为附近敌人附加水元素。"
   icon: {fileID: 10907, guid: 0000000000000000f000000000000000, type: 0}
   effect: {fileID: 11400000, guid: caf861ef1b223d24995212288aaf2d8b, type: 2}
+  category: 0
+  rarity: 2
+  stackPolicy: 1
+  supportedModes: 7
+  acquisitionSources: 7
+  temporaryDuration: 30
+  modeEffects: []
