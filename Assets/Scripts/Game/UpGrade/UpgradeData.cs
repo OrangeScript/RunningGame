@@ -11,6 +11,7 @@ public class UpgradeData : ScriptableObject
     [SerializeField]private string upgradeName;
     [TextArea][SerializeField] private string description;
     [SerializeField] private Sprite icon;
+    [SerializeField] private string iconKey;
     [Header("RuntimeEffect")]
     [SerializeField] private ItemEffectDefiniton effect;
 
@@ -32,7 +33,7 @@ public class UpgradeData : ScriptableObject
         => description;
 
     public Sprite Icon
-        => icon;
+        => ItemIconLibrary.Get(string.IsNullOrEmpty(iconKey)?ItemIconLibrary.LegacyKey(NetworkId):iconKey) ?? icon;
 
     public ItemCategory Category => category;
     public ItemRarity Rarity => rarity;

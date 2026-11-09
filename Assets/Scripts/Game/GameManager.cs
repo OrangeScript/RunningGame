@@ -107,6 +107,8 @@ public class GameManager : NetworkBehaviour
     Dictionary<int,UpgradeData> upgradeById = new Dictionary<int, UpgradeData>();
     Dictionary<ulong,int[]> offeredUpgradeIds = new Dictionary<ulong, int[]>();
     HashSet<ulong> pendingUpgradeClients = new HashSet<ulong>();
+    private readonly Dictionary<ulong,Queue<int>> recentRewardOffers=new Dictionary<ulong,Queue<int>>();
+    private int rewardRoll;
 
 
     public void StartMultiplayerRun()
@@ -163,6 +165,7 @@ public class GameManager : NetworkBehaviour
 
     private void StartRunInternal()
     {
+        recentRewardOffers.Clear();
         if (sectionManager == null)
         {
             Debug.LogError(
@@ -339,7 +342,7 @@ public class GameManager : NetworkBehaviour
             return;
         }
 
-        int[] options = CreateUpgradeOptions(source);
+        int[] options = CreateUpgradeOptions(source,clientId);
         if (options.Length == 0)
         {
             FinishUpgradeSelection(clientId);
@@ -801,7 +804,7 @@ public class GameManager : NetworkBehaviour
     {
         upgradeById.Clear();
         if (upgradePool == null)
-            return;
+            upgradePool=Array.Empty<UpgradeData>();
 
         foreach(UpgradeData upgrade
             in upgradePool)
@@ -818,10 +821,14 @@ public class GameManager : NetworkBehaviour
 
             upgradeById.Add(id,upgrade);
         }
+        if(RuntimeItemCatalog.Default!=null&&RuntimeItemCatalog.Default.Items!=null)
+            foreach(var upgrade in RuntimeItemCatalog.Default.Items)
+                if(upgrade!=null&&!upgradeById.ContainsKey(upgrade.NetworkId))upgradeById.Add(upgrade.NetworkId,upgrade);
     }
 
     public int[] CreateUpgradeOptions(
-        ItemAcquisitionSource source = ItemAcquisitionSource.LevelReward)
+        ItemAcquisitionSource source = ItemAcquisitionSource.LevelReward,
+        ulong clientId = ulong.MaxValue)
     {
         const int optionCount = 3;
         List<UpgradeData> candidates = new List<UpgradeData>();
@@ -847,33 +854,18 @@ public class GameManager : NetworkBehaviour
                 candidates = highQuality;
         }
 
-        int count = Mathf.Min(optionCount, candidates.Count);
-        int[] result = new int[count];
-        for(int i = 0;
-            i < count;
-            i++)
+        var owned=new HashSet<int>();
+        if(NetworkManager!=null&&NetworkManager.ConnectedClients.TryGetValue(clientId,out var player)&&player.PlayerObject!=null)
         {
-            int randomIndex =
-            UnityEngine.Random.Range(
-                0,
-                candidates.Count
-            );
-
-
-            UpgradeData selected =
-                candidates[
-                    randomIndex
-                ];
-
-
-            result[i] =
-                selected.NetworkId;
-
-
-            candidates.RemoveAt(
-                randomIndex
-            );
+            var inventory=player.PlayerObject.GetComponent<ItemManager>();
+            if(inventory!=null)for(int i=0;i<inventory.SyncedItemCount;i++)owned.Add(inventory.GetSyncedItemId(i));
         }
+        candidates.RemoveAll(item=>item.StackPolicy==ItemStackPolicy.Unique&&owned.Contains(item.NetworkId));
+        if(!recentRewardOffers.TryGetValue(clientId,out var history))recentRewardOffers[clientId]=history=new Queue<int>();
+        int seed=unchecked((activeMapNode?.ContentSeed??17) ^ (int)clientId ^ ++rewardRoll*7919);
+        int[] result=RewardOfferSampler.Draw(candidates,owned,new HashSet<int>(history),seed,optionCount);
+        foreach(int id in result)history.Enqueue(id);
+        while(history.Count>12)history.Dequeue();
         return result;
 
     }

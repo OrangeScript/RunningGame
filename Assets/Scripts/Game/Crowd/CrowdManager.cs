@@ -39,6 +39,7 @@ public class CrowdManager : NetworkBehaviour
     public void SetPopulation(int value) { if (IsServer) population.Value = Mathf.Clamp(value,1,9999); }
     public void DamagePopulation(int damage) => DamageHealth(damage);
     public void DamageHealth(int damage) { if (IsServer && damage > 0) health.Value = Mathf.Max(0,health.Value-damage); }
+    public void HealHealth(int amount) { if(IsServer&&Health>0)health.Value=Mathf.Min(MaxHealth,Health+Mathf.Max(0,amount)); }
     public void AddPopulation(int amount) => SetPopulation((int)Math.Min(9999L,(long)Population+amount));
     public void SubtractPopulation(int amount) => SetPopulation(Population-Mathf.Max(0,amount));
     public void MultiplyPopulation(int multiplier) => SetPopulation((int)Math.Min(9999L,(long)Population*Mathf.Max(1,multiplier)));

@@ -37,6 +37,20 @@ public class ItemManager : NetworkBehaviour
 
     private readonly List<OwnedItem> items = new List<OwnedItem>();
     private readonly List<ItemRuntime> activeItems = new List<ItemRuntime>();
+    private readonly Dictionary<int,double> activeReadyAt = new Dictionary<int,double>();
+    public int ActiveItemCount=>activeItems.Count;
+    public UpgradeData GetActiveDefinition(int slot)
+    {
+        if(slot<0||slot>=activeItems.Count)return null;
+        foreach(var entry in items)if(entry.Runtime==activeItems[slot])return entry.Definition;
+        return null;
+    }
+    public float GetActiveCooldown(int slot)
+    {
+        if(slot<0||slot>=activeItems.Count)return 0;
+        if(IsServer)return activeItems[slot].CooldownRemaining;
+        return activeReadyAt.TryGetValue(slot,out var ready)?Mathf.Max(0,(float)(ready-NetworkManager.ServerTime.Time)):0;
+    }
 
     private readonly NetworkVariable<GameplayMode> gameplayMode =
         new NetworkVariable<GameplayMode>(
@@ -49,6 +63,17 @@ public class ItemManager : NetworkBehaviour
     public int itemCount => items.Count;
     public GameplayMode CurrentMode => gameplayMode.Value;
     public int SyncedItemCount => acquiredItemIds.Count;
+    public float ArenaMoveSpeedMultiplier=>GetArenaStats().MoveSpeed;
+    private ArenaBuildStats cachedStats;
+    public ArenaBuildStats GetArenaStats()
+    {
+        if(cachedStats!=null)return cachedStats;
+        cachedStats=new ArenaBuildStats();
+        foreach(var item in items)item.Runtime.ModifyArenaStats(cachedStats);
+        cachedStats.MoveSpeed=Mathf.Clamp(cachedStats.MoveSpeed,.7f,1.6f);
+        return cachedStats;
+    }
+    public bool Owns(int networkId)=>Contains(networkId);
 
     public event Action<GameplayMode> ModeChanged;
     public event Action InventoryChanged;
@@ -60,6 +85,8 @@ public class ItemManager : NetworkBehaviour
 
         if (IsServer)
             gameplayMode.Value = startingMode;
+        else
+            RebuildMirroredInventory();
 
         ModeChanged?.Invoke(gameplayMode.Value);
         InventoryChanged?.Invoke();
@@ -75,6 +102,8 @@ public class ItemManager : NetworkBehaviour
 
         items.Clear();
         activeItems.Clear();
+        cachedStats=null;
+        activeReadyAt.Clear();
     }
 
     public int GetSyncedItemId(int index)
@@ -229,16 +258,16 @@ public class ItemManager : NetworkBehaviour
             return;
 
         bool success = activeItems[slotIndex].TryActivate();
-        NotifyActivationResultClientRpc(success);
+        double readyAt=NetworkManager.ServerTime.Time+activeItems[slotIndex].CooldownRemaining;
+        NotifyActivationResultClientRpc(success,slotIndex,readyAt);
     }
 
     [ClientRpc]
-    private void NotifyActivationResultClientRpc(bool success)
+    private void NotifyActivationResultClientRpc(bool success,int slot,double readyAt)
     {
         if (!IsOwner)
             return;
-
-        Debug.Log(success ? "Active item activated." : "Active item is not ready.");
+        activeReadyAt[slot]=readyAt;
     }
 
     private void RegisterRuntime(
@@ -248,6 +277,7 @@ public class ItemManager : NetworkBehaviour
         bool synchronize)
     {
         runtime.OnAcquire(this);
+        cachedStats=null;
         items.Add(new OwnedItem
         {
             Definition = definition,
@@ -308,6 +338,7 @@ public class ItemManager : NetworkBehaviour
 
     private void RemoveAt(int index)
     {
+        cachedStats=null;
         OwnedItem entry = items[index];
         entry.Runtime.OnRemove();
         activeItems.Remove(entry.Runtime);
@@ -348,6 +379,7 @@ public class ItemManager : NetworkBehaviour
 
     private void HandleModeChanged(GameplayMode previous, GameplayMode current)
     {
+        cachedStats=null;
         for (int i = 0; i < items.Count; i++)
             items[i].Runtime.OnModeChanged(previous, current);
 
@@ -367,6 +399,24 @@ public class ItemManager : NetworkBehaviour
 
     private void HandleItemListChanged(NetworkListEvent<int> changeEvent)
     {
+        cachedStats=null;
+        if(!IsServer) RebuildMirroredInventory();
         InventoryChanged?.Invoke();
+    }
+
+    private void RebuildMirroredInventory()
+    {
+        if(RuntimeItemCatalog.Default!=null)
+        {
+            foreach(var entry in items)entry.Runtime.OnRemove();
+            items.Clear();activeItems.Clear();
+            foreach(int id in acquiredItemIds)
+            {
+                var definition=RuntimeItemCatalog.Default.Find(id);
+                if(definition==null)continue;
+                var runtime=definition.CreateRuntime();
+                if(runtime!=null)RegisterRuntime(definition,runtime,0,false);
+            }
+        }
     }
 }

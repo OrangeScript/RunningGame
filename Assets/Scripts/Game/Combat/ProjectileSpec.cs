@@ -12,6 +12,13 @@ public class ProjectileSpec
     public float speed = 10f;
     public float sizeMultiplier = 1f;
     public ElementType element = ElementType.None;
+    public ElementType secondaryElement = ElementType.None;
+    public void AddElement(ElementType value)
+    {
+        if(value==ElementType.None||value==element||value==secondaryElement) return;
+        if(element==ElementType.None) element=value;
+        else if(secondaryElement==ElementType.None) secondaryElement=value;
+    }
 
     public int bounce = 0;
     public float bounceRange = 6f;
@@ -29,6 +36,7 @@ public class ProjectileSpec
             speed = speed,
             sizeMultiplier = sizeMultiplier,
             element = element,
+            secondaryElement = secondaryElement,
             bounce = bounce,
             bounceRange = bounceRange,
             pierce = pierce,

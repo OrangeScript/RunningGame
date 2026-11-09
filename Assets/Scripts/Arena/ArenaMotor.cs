@@ -5,9 +5,9 @@ using UnityEngine;
 public class ArenaMotor : MonoBehaviour
 {
     [Header("Movement")]
-    [SerializeField, Min(0f)] private float maxSpeed = 7f;
-    [SerializeField, Min(0f)] private float acceleration = 35f;
-    [SerializeField, Min(0f)] private float deceleration = 45f;
+    [SerializeField, Min(0f)] private float maxSpeed = 8f;
+    [SerializeField, Min(0f)] private float acceleration = 65f;
+    [SerializeField, Min(0f)] private float deceleration = 85f;
     [SerializeField, Min(0f)] private float turnSpeedDegrees = 720f;
     [SerializeField] private float gravity = -20f;
     [SerializeField] private float groundedVerticalSpeed = -2f;
@@ -60,7 +60,7 @@ public class ArenaMotor : MonoBehaviour
             Mathf.Max(0f, halfExtents.y));
     }
 
-    public void Simulate(Vector2 moveInput, Vector2 aimInput, float deltaTime)
+    public void Simulate(Vector2 moveInput, Vector2 aimInput, float deltaTime, float speedMultiplier = 1f)
     {
         if (!simulationEnabled || deltaTime <= 0f)
         {
@@ -78,7 +78,7 @@ public class ArenaMotor : MonoBehaviour
         }
 
         moveInput = ArenaProtocol.ClampToUnitCircle(moveInput);
-        Vector3 desiredVelocity = new Vector3(moveInput.x, 0f, moveInput.y) * maxSpeed;
+        Vector3 desiredVelocity = new Vector3(moveInput.x, 0f, moveInput.y) * maxSpeed * Mathf.Clamp(speedMultiplier,.25f,2f);
         float rate = desiredVelocity.sqrMagnitude > planarVelocity.sqrMagnitude
             ? acceleration
             : deceleration;
@@ -124,17 +124,19 @@ public class ArenaMotor : MonoBehaviour
         float minZ = arenaCenter.y - Mathf.Max(0f, arenaHalfExtents.y - inset);
         float maxZ = arenaCenter.y + Mathf.Max(0f, arenaHalfExtents.y - inset);
 
+        bool clampedX = target.x < minX || target.x > maxX;
+        bool clampedZ = target.z < minZ || target.z > maxZ;
         target.x = Mathf.Clamp(target.x, minX, maxX);
         target.z = Mathf.Clamp(target.z, minZ, maxZ);
         displacement.x = target.x - current.x;
         displacement.z = target.z - current.z;
 
-        if (Mathf.Abs(displacement.x) < Mathf.Abs(planarVelocity.x * Time.deltaTime))
+        if (clampedX)
         {
             planarVelocity.x = 0f;
         }
 
-        if (Mathf.Abs(displacement.z) < Mathf.Abs(planarVelocity.z * Time.deltaTime))
+        if (clampedZ)
         {
             planarVelocity.z = 0f;
         }
@@ -156,6 +158,14 @@ public class ArenaMotor : MonoBehaviour
             transform.rotation,
             targetRotation,
             Mathf.Max(0f, turnSpeedDegrees) * deltaTime);
+    }
+
+    public void Restore(Vector3 position,Vector3 velocity)
+    {
+        if (characterController != null) characterController.enabled=false;
+        transform.position=position;
+        planarVelocity=velocity; verticalVelocity=0;
+        if (characterController != null) characterController.enabled=simulationEnabled;
     }
 
     private void OnValidate()

@@ -33,6 +33,8 @@ public abstract class ActiveAttackItemRuntime : ItemRuntime
 
     public bool IsReady => remainingCooldown <= 0f;
     public override bool CanActivate => true;
+    public override float CooldownDuration => cooldown;
+    public override float CooldownRemaining => Mathf.Max(0,remainingCooldown);
 
     public override bool TryActivate()
     {

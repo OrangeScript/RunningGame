@@ -3,19 +3,18 @@ using Unity.Netcode;
 using UnityEngine;
 
 /// <summary>
-/// Small, bounded interpolation buffer for remote presentation. With an NGO
-/// NetworkTransform on the root, point this at VisualRoot and leave
-/// applyPosition disabled so the two systems do not fight over the root.
+/// Bounded interpolation of the single authoritative snapshot stream.
+/// Only remote pawns play back; the local owner uses input prediction.
 /// </summary>
 [DisallowMultipleComponent]
 public class ArenaRemoteBuffer : MonoBehaviour
 {
     [Header("Playback")]
     [SerializeField] private Transform presentationTarget;
-    [SerializeField, Min(0f)] private float interpolationDelay = 0.1f;
+    [SerializeField, Min(0f)] private float interpolationDelay = 0.05f;
     [SerializeField, Range(2, 64)] private int capacity = 24;
     [SerializeField, Min(0f)] private float teleportDistance = 6f;
-    [SerializeField] private bool applyPosition;
+    [SerializeField] private bool applyPosition = true;
     [SerializeField] private bool applyRotation = true;
 
     private readonly List<ArenaStateSnapshot> snapshots = new List<ArenaStateSnapshot>(24);

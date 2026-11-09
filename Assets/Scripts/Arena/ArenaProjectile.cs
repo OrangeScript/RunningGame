@@ -9,19 +9,22 @@ public readonly struct ArenaDamageInfo
     public readonly ulong SourceClientId;
     public readonly Vector3 HitPoint;
     public readonly Vector3 Direction;
+    public readonly ElementType Element;
 
     public ArenaDamageInfo(
         float amount,
         int sourceTeamId,
         ulong sourceClientId,
         Vector3 hitPoint,
-        Vector3 direction)
+        Vector3 direction,
+        ElementType element = ElementType.None)
     {
         Amount = amount;
         SourceTeamId = sourceTeamId;
         SourceClientId = sourceClientId;
         HitPoint = hitPoint;
         Direction = direction;
+        Element = element;
     }
 }
 
@@ -49,6 +52,7 @@ public struct ArenaProjectileState :
     public int TeamId;
     public ulong SourceClientId;
     public double SpawnServerTime;
+    public ElementType Element;
 
     public void NetworkSerialize<T>(BufferSerializer<T> serializer)
         where T : IReaderWriter
@@ -62,6 +66,7 @@ public struct ArenaProjectileState :
         serializer.SerializeValue(ref TeamId);
         serializer.SerializeValue(ref SourceClientId);
         serializer.SerializeValue(ref SpawnServerTime);
+        serializer.SerializeValue(ref Element);
     }
 
     public bool Equals(ArenaProjectileState other)
@@ -74,7 +79,7 @@ public struct ArenaProjectileState :
                SizeMultiplier.Equals(other.SizeMultiplier) &&
                TeamId == other.TeamId &&
                SourceClientId == other.SourceClientId &&
-               SpawnServerTime.Equals(other.SpawnServerTime);
+               SpawnServerTime.Equals(other.SpawnServerTime) && Element==other.Element;
     }
 }
 
@@ -131,7 +136,8 @@ public class ArenaProjectile : NetworkBehaviour
         float damage,
         float sizeMultiplier,
         int teamId,
-        ulong sourceClientId)
+        ulong sourceClientId,
+        ElementType element=ElementType.None)
     {
         direction.y = 0f;
         if (!ArenaProtocol.IsFinite(direction) || direction.sqrMagnitude < 0.0001f)
@@ -152,7 +158,8 @@ public class ArenaProjectile : NetworkBehaviour
             SizeMultiplier = SanitizePositive(sizeMultiplier, 1f, 20f),
             TeamId = teamId,
             SourceClientId = sourceClientId,
-            SpawnServerTime = GetServerTime()
+            SpawnServerTime = GetServerTime(),
+            Element=element
         };
 
         hasPreparedState = true;
@@ -327,7 +334,8 @@ public class ArenaProjectile : NetworkBehaviour
                 state.TeamId,
                 state.SourceClientId,
                 hitPoint,
-                state.Direction));
+                state.Direction,
+                state.Element));
         }
 
         Consume();

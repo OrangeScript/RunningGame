@@ -6,7 +6,8 @@ using UnityEngine;
 public enum ArenaInputButtons : byte
 {
     None = 0,
-    Fire = 1 << 0
+    Fire = 1 << 0,
+    Focus = 1 << 1
 }
 
 /// <summary>
@@ -23,6 +24,7 @@ public struct ArenaInputFrame : INetworkSerializable, IEquatable<ArenaInputFrame
     public ArenaInputButtons Buttons;
 
     public bool FireHeld => (Buttons & ArenaInputButtons.Fire) != 0;
+    public bool FocusHeld => (Buttons & ArenaInputButtons.Focus) != 0;
 
     public void NetworkSerialize<T>(BufferSerializer<T> serializer)
         where T : IReaderWriter
@@ -53,8 +55,8 @@ public struct ArenaInputFrame : INetworkSerializable, IEquatable<ArenaInputFrame
 }
 
 /// <summary>
-/// A server-authored presentation snapshot. NetworkTransform can continue to
-/// synchronize the root while this snapshot drives a buffered visual child.
+/// The single authoritative pose stream: owners reconcile and replay pending
+/// inputs; remote peers interpolate these snapshots.
 /// </summary>
 public struct ArenaStateSnapshot : INetworkSerializable, IEquatable<ArenaStateSnapshot>
 {
@@ -89,7 +91,7 @@ public static class ArenaProtocol
     public const int AxisPrecision = 127;
     public const float MinimumAimMagnitude = 0.05f;
 
-    private const ArenaInputButtons AllowedButtons = ArenaInputButtons.Fire;
+    private const ArenaInputButtons AllowedButtons = ArenaInputButtons.Fire | ArenaInputButtons.Focus;
 
     public static ArenaInputFrame Pack(
         ushort sequence,

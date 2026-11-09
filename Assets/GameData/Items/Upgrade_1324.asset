@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e1ecbfdde894a8743bc2de4f4e0369ab, type: 3}
+  m_Name: Upgrade_1324
+  m_EditorClassIdentifier:
+  networkId: 1324
+  upgradeName: "镜面护符"
+  description: "主动吸收 3 点伤害，护盾持续 6 秒。冷却 16 秒。"
+  icon: {fileID: 0}
+  iconKey: shield-check
+  effect: {fileID: 11400000, guid: b052000000000000000000000000052c, type: 2}
+  category: 1
+  rarity: 1
+  stackPolicy: 1
+  supportedModes: 7
+  acquisitionSources: 3
+  temporaryDuration: 30
+  modeEffects: []

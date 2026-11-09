@@ -90,8 +90,11 @@ public class ArenaInputReader : MonoBehaviour
 
         UpdateAim();
 
-        bool fireHeld = fireAction != null && fireAction.IsPressed();
+        bool fireHeld = (fireAction != null && fireAction.IsPressed()) ||
+                        (Mouse.current != null && Mouse.current.leftButton.isPressed);
         frame = ArenaProtocol.Pack(sequence, move, lastAim, fireHeld);
+        if (Keyboard.current != null && (Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed))
+            frame.Buttons |= ArenaInputButtons.Focus;
         return true;
     }
 

@@ -2,8 +2,8 @@ using UnityEngine;
 
 /// <summary>
 /// Scene-local projectile used when no registered ArenaProjectile network
-/// prefab is assigned. The server owns collision; clients receive a visual
-/// spawn RPC from ArenaPlayerNetwork and only animate the projectile.
+/// prefab is assigned. The server owns damage; owner and remote cosmetic
+/// shots animate and collide with the shared boss surface without damage.
 /// </summary>
 public sealed class ArenaRuntimeProjectile : MonoBehaviour
 {
@@ -15,6 +15,10 @@ public sealed class ArenaRuntimeProjectile : MonoBehaviour
     private int teamId;
     private ulong sourceClientId;
     private bool authoritative;
+    private ElementType element;
+    private int remainingBounces;
+    private float explosionMultiplier;
+    private float nextHitTime;
     private readonly RaycastHit[] hits = new RaycastHit[16];
 
     public static ArenaRuntimeProjectile SpawnServer(
@@ -25,9 +29,17 @@ public sealed class ArenaRuntimeProjectile : MonoBehaviour
         float damage,
         float size,
         int teamId,
-        ulong sourceClientId)
+        ulong sourceClientId,
+        ElementType element = ElementType.None,
+        int pierce = 0,
+        int bounce = 0,
+        float explosionMultiplier = 0)
     {
-        return Spawn(origin, direction, speed, lifetime, damage, size, teamId, sourceClientId, true);
+        var projectile=Spawn(origin,direction,speed,lifetime,damage,size,teamId,sourceClientId,true);
+        projectile.element=element;projectile.damage*=1+.1f*Mathf.Min(6,pierce);
+        projectile.remainingBounces=Mathf.Min(4,bounce);projectile.explosionMultiplier=explosionMultiplier;
+        RunSectionPresentation.Paint(projectile.GetComponent<Renderer>(),ElementTint(element));
+        return projectile;
     }
 
     public static ArenaRuntimeProjectile SpawnVisual(
@@ -36,9 +48,14 @@ public sealed class ArenaRuntimeProjectile : MonoBehaviour
         float speed,
         float lifetime,
         float size,
-        int teamId)
+        int teamId,
+        ElementType element=ElementType.None,
+        int bounce=0)
     {
-        return Spawn(origin, direction, speed, lifetime, 0f, size, teamId, 0, false);
+        var visual=Spawn(origin, direction, speed, lifetime, 0f, size, teamId, 0, false);
+        RunSectionPresentation.Paint(visual.GetComponent<Renderer>(),ElementTint(element));
+        visual.remainingBounces=Mathf.Min(4,bounce);
+        return visual;
     }
 
     private static ArenaRuntimeProjectile Spawn(
@@ -63,7 +80,7 @@ public sealed class ArenaRuntimeProjectile : MonoBehaviour
 
         Renderer renderer = visual.GetComponent<Renderer>();
         if (renderer != null)
-            renderer.material.color = shotTeam == 1 ? new Color(0.2f, 0.85f, 1f) : new Color(1f, 0.2f, 0.15f);
+            RunSectionPresentation.Paint(renderer,shotTeam == 1 ? new Color(0.2f, 0.85f, 1f) : new Color(1f, 0.2f, 0.15f));
 
         ArenaRuntimeProjectile projectile = visual.AddComponent<ArenaRuntimeProjectile>();
         shotDirection.y = 0f;
@@ -78,6 +95,14 @@ public sealed class ArenaRuntimeProjectile : MonoBehaviour
         return projectile;
     }
 
+    private static Color ElementTint(ElementType element)=>element switch
+    {
+        ElementType.Fire=>new Color(1,.52f,.24f),ElementType.Water=>new Color(.2f,.64f,1),
+        ElementType.Ice=>new Color(.45f,.92f,1),ElementType.Lightning=>new Color(.86f,.65f,1),
+        ElementType.Wind=>new Color(.5f,1,.79f),ElementType.Nature=>new Color(.7f,.91f,.32f),
+        ElementType.Earth=>new Color(1,.8f,.39f),_=>new Color(.9f,.97f,1)
+    };
+
     private void Update()
     {
         if (Time.time >= expiresAt)
@@ -88,8 +113,13 @@ public sealed class ArenaRuntimeProjectile : MonoBehaviour
 
         float distance = speed * Time.deltaTime;
         Vector3 start = transform.position;
+        if(remainingBounces>0)
+        {
+            if(Mathf.Abs(start.x)>17.3f&&Mathf.Sign(start.x)==Mathf.Sign(direction.x)) { direction.x=-direction.x;remainingBounces--; }
+            if(Mathf.Abs(start.z)>11.3f&&Mathf.Sign(start.z)==Mathf.Sign(direction.z)) { direction.z=-direction.z;remainingBounces--; }
+        }
 
-        if (authoritative && TryHit(start, distance))
+        if (TryHit(start, distance))
             return;
 
         transform.position = start + direction * distance;
@@ -97,6 +127,7 @@ public sealed class ArenaRuntimeProjectile : MonoBehaviour
 
     private bool TryHit(Vector3 start, float distance)
     {
+        if(Time.time<nextHitTime)return false;
         int count = Physics.SphereCastNonAlloc(
             start,
             radius,
@@ -108,6 +139,7 @@ public sealed class ArenaRuntimeProjectile : MonoBehaviour
 
         float nearestDistance = float.PositiveInfinity;
         IArenaDamageable nearest = null;
+        bool cosmeticHit=false;
         Vector3 point = start + direction * distance;
 
         for (int i = 0; i < count; i++)
@@ -117,6 +149,10 @@ public sealed class ArenaRuntimeProjectile : MonoBehaviour
                 continue;
 
             IArenaDamageable damageable = ArenaDamageUtility.FindDamageable(collider);
+            if(!authoritative&&collider.TryGetComponent<ArenaBossHitSurface>(out _)&&hits[i].distance<nearestDistance)
+            {
+                cosmeticHit=true;nearestDistance=hits[i].distance;point=hits[i].point;
+            }
             if (damageable == null || !damageable.IsArenaAlive || damageable.ArenaTeamId == teamId)
                 continue;
 
@@ -128,16 +164,22 @@ public sealed class ArenaRuntimeProjectile : MonoBehaviour
             }
         }
 
-        if (nearest == null)
+        if (nearest == null&&!cosmeticHit)
             return false;
 
-        nearest.ApplyArenaDamage(new ArenaDamageInfo(
-            damage,
+        if(authoritative&&nearest!=null)nearest.ApplyArenaDamage(new ArenaDamageInfo(
+            damage*(1+explosionMultiplier),
             teamId,
             sourceClientId,
             point,
-            direction));
-        Destroy(gameObject);
+            direction,
+            element));
+        if(remainingBounces>0)
+        {
+            remainingBounces--;direction=-direction;nextHitTime=Time.time+.25f;
+            transform.position=start+direction*distance;
+        }
+        else Destroy(gameObject);
         return true;
     }
 }

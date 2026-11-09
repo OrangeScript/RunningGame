@@ -1,6 +1,3 @@
-using System;
-using System.Collections;
-using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -8,274 +5,132 @@ using UnityEngine.InputSystem;
 [RequireComponent(typeof(CharacterController))]
 public class RunnerController : NetworkBehaviour
 {
-
-    [Header("Movement")]
-    [SerializeField] private float forwardSpeed = 8f;
-    [SerializeField] private float horizontalSpeed = 7f;
-
-    [Header("Boundary")]
-    [SerializeField] private float xLimit = RunSectionPresentation.MovementHalfWidth;
-
+    [SerializeField] private float forwardSpeed=4f;
+    [SerializeField] private float horizontalSpeed=7f;
+    [SerializeField] private float xLimit=RunSectionPresentation.MovementHalfWidth;
+    private readonly NetworkVariable<PlayerRunPhase> playerPhase=new NetworkVariable<PlayerRunPhase>(PlayerRunPhase.Lobby);
+    private readonly NetworkVariable<int> laneId=new NetworkVariable<int>();
+    private readonly NetworkVariable<float> laneCenterX=new NetworkVariable<float>();
+    private readonly NetworkVariable<float> laneHalfWidth=new NetworkVariable<float>(RunSectionPresentation.MovementHalfWidth);
     private CharacterController controller;
     private PlayerInput playerInput;
     private CrowdManager crowd;
-    private float serverMoveInput;
-
-    private readonly NetworkVariable<PlayerRunPhase> playerPhase =
-        new NetworkVariable<PlayerRunPhase>(
-            PlayerRunPhase.Lobby,
-            NetworkVariableReadPermission.Everyone,
-            NetworkVariableWritePermission.Server);
-
-    private readonly NetworkVariable<int> laneId =
-        new NetworkVariable<int>(0,
-            NetworkVariableReadPermission.Everyone,
-            NetworkVariableWritePermission.Server);
-
-    private readonly NetworkVariable<float> laneCenterX =
-        new NetworkVariable<float>(0f,
-            NetworkVariableReadPermission.Everyone,
-            NetworkVariableWritePermission.Server);
-
-    private readonly NetworkVariable<float> laneHalfWidth =
-        new NetworkVariable<float>(RunSectionPresentation.MovementHalfWidth,
-            NetworkVariableReadPermission.Everyone,
-            NetworkVariableWritePermission.Server);
-
-    public PlayerRunPhase Phase => playerPhase.Value;
-    public int LaneId => laneId.Value;
-    public float LaneCenterX => laneCenterX.Value;
-    public float MovementHalfWidth => laneHalfWidth.Value;
-
-
-    void Awake()
+    private ArenaRemoteBuffer remote;
+    private readonly MotionPrediction prediction=new MotionPrediction();
+    private readonly MovementInputBudget budget=new MovementInputBudget();
+    private float input,accumulator;
+    private ushort sequence,lastProcessed;
+    private bool receivedInput;
+    private uint revision,receivedRevision;
+    private double nextSnapshot,lastSnapshot=-1;
+    private Vector3 velocity,visualCorrection;
+    public PlayerRunPhase Phase=>playerPhase.Value;
+    public int LaneId=>laneId.Value;
+    public float LaneCenterX=>laneCenterX.Value;
+    public float MovementHalfWidth=>laneHalfWidth.Value;
+    private bool CanMove=>Phase==PlayerRunPhase.Running || Phase==PlayerRunPhase.Combat;
+    private void Awake()
     {
-        controller = GetComponent<CharacterController>();
-        playerInput = GetComponent<PlayerInput>();
-        crowd = GetComponent<CrowdManager>();
-
-        playerInput.enabled = false;
-        controller.enabled = false;
-
+        controller=GetComponent<CharacterController>(); playerInput=GetComponent<PlayerInput>(); crowd=GetComponent<CrowdManager>();
+        remote=gameObject.AddComponent<ArenaRemoteBuffer>();
+        if(playerInput!=null) playerInput.enabled=false;
+        controller.enabled=false;
     }
-
     public override void OnNetworkSpawn()
     {
-        playerInput.enabled = IsOwner;
-        controller.enabled = IsServer;
-        if (IsServer)
-        {
-            // 防止Host和Client出生完全重叠
-            transform.position +=
-                Vector3.right *
-                (float)OwnerClientId *
-                0.15f;
-
-            laneCenterX.Value = transform.position.x;
-            laneHalfWidth.Value = xLimit;
-            playerPhase.Value = PlayerRunPhase.Lobby;
-        }
-
-        if (crowd != null)
-            crowd.PopulationDepleted += HandlePopulationDepleted;
-
-
-        if (IsOwner)
-        {
-            CameraFollow cameraFollow =
-                Camera.main != null
-                    ? Camera.main
-                        .GetComponent<CameraFollow>()
-                    : null;
-
-
-            if (cameraFollow != null)
-            {
-                cameraFollow.SetTarget(
-                    transform
-                );
-            }
-
-
-            PopulationUI populationUI =
-                FindFirstObjectByType<
-                    PopulationUI
-                >();
-
-
-            if (populationUI != null)
-            {
-                populationUI.Bind(
-                    GetComponent<CrowdManager>()
-                );
-            }
-
-            RunnerRuntimeHUD.Ensure(
-                this,
-                crowd,
-                GetComponent<ItemManager>());
-        }
+        if(playerInput!=null) playerInput.enabled=IsOwner;
+        controller.enabled=IsServer||IsOwner; remote.SetPlaybackEnabled(!IsServer&&!IsOwner);
+        playerPhase.OnValueChanged+=HandlePhase;
+        if(IsServer) { laneCenterX.Value=transform.position.x; laneHalfWidth.Value=xLimit; }
+        if(crowd!=null) crowd.PopulationDepleted+=HandleDepleted;
+        if(!IsOwner) return;
+        Camera.main?.GetComponent<CameraFollow>()?.SetTarget(transform);
+        RunnerRuntimeHUD.Ensure(this,crowd,GetComponent<ItemManager>());
     }
-
     public override void OnNetworkDespawn()
     {
-        playerInput.enabled = false;
-        if (crowd != null)
-            crowd.PopulationDepleted -= HandlePopulationDepleted;
+        if(playerInput!=null) playerInput.enabled=false;
+        if(crowd!=null) crowd.PopulationDepleted-=HandleDepleted;
+        playerPhase.OnValueChanged-=HandlePhase; prediction.Clear();
     }
-    // Start is called before the first frame update
-    void Start()
+    private void OnMove(InputValue value) { if(IsOwner) input=Mathf.Clamp(value.Get<float>(),-1,1); }
+    private void HandlePhase(PlayerRunPhase previous,PlayerRunPhase current)
+    { if(!CanMove) { prediction.Clear(); accumulator=0; velocity=Vector3.zero; } }
+    private void Update()
     {
-        
+        if(!IsSpawned) return;
+        if(IsOwner && CanMove)
+        {
+            accumulator=Mathf.Min(.1f,accumulator+Time.deltaTime);
+            while(accumulator>=MotionPrediction.Step)
+            {
+                accumulator-=MotionPrediction.Step;
+                var frame=ArenaProtocol.Pack(++sequence,new Vector2(input,0),Vector2.up,false);
+                if(IsServer) Process(frame);
+                else { Simulate(frame); prediction.Record(frame); SubmitInputsServerRpc(prediction.RedundantBatch(),receivedRevision); }
+            }
+        }
+        if(IsServer && Time.unscaledTimeAsDouble>=nextSnapshot)
+        {
+            nextSnapshot=Time.unscaledTimeAsDouble+1d/30;
+            SnapshotClientRpc(new ArenaStateSnapshot{ServerTime=NetworkManager.ServerTime.Time,Position=transform.position,
+                Forward=transform.forward,Velocity=velocity,LastProcessedInput=lastProcessed},revision);
+        }
     }
-
-    // Update is called once per frame
-    void Update()
+    private void LateUpdate()
+    {
+        if(!IsOwner||IsServer) return;
+        Transform avatar=transform.Find("Capsule"); if(avatar==null) return;
+        visualCorrection=Vector3.Lerp(visualCorrection,Vector3.zero,1-Mathf.Exp(-24*Time.deltaTime));
+        avatar.localPosition=Vector3.up+visualCorrection;
+    }
+    [ServerRpc(Delivery=RpcDelivery.Unreliable)]
+    private void SubmitInputsServerRpc(ArenaInputFrame[] frames,uint inputRevision,ServerRpcParams rpc=default)
+    {
+        if(rpc.Receive.SenderClientId!=OwnerClientId||frames==null||frames.Length>4||inputRevision!=revision) return;
+        foreach(var frame in frames) Process(frame);
+    }
+    private void Process(ArenaInputFrame frame)
+    {
+        if(!CanMove||(receivedInput&&!ArenaProtocol.IsSequenceNewer(frame.Sequence,lastProcessed))) return;
+        if(!budget.Consume(Time.unscaledTimeAsDouble)) return;
+        receivedInput=true; lastProcessed=frame.Sequence; Simulate(frame);
+    }
+    private void Simulate(ArenaInputFrame frame)
+    {
+        if(!CanMove||!controller.enabled||!ArenaProtocol.TryDecode(frame,out Vector2 move,out _,out _)) return;
+        Vector3 before=transform.position;
+        float x=Mathf.Clamp(before.x+move.x*horizontalSpeed*MotionPrediction.Step,LaneCenterX-MovementHalfWidth,LaneCenterX+MovementHalfWidth);
+        controller.Move(new Vector3(x-before.x,-2*MotionPrediction.Step,Phase==PlayerRunPhase.Running?forwardSpeed*MotionPrediction.Step:0));
+        velocity=(transform.position-before)/MotionPrediction.Step;
+    }
+    [ClientRpc(Delivery=RpcDelivery.Unreliable)]
+    private void SnapshotClientRpc(ArenaStateSnapshot snapshot,uint serverRevision)
+    {
+        if(IsServer||snapshot.ServerTime<=lastSnapshot) return;
+        lastSnapshot=snapshot.ServerTime;
+        if(!IsOwner) { remote.Push(snapshot); return; }
+        Vector3 before=transform.position;
+        if(receivedRevision!=serverRevision) { receivedRevision=serverRevision; prediction.Clear(); visualCorrection=Vector3.zero; }
+        prediction.Acknowledge(snapshot.LastProcessedInput);
+        controller.enabled=false; transform.position=snapshot.Position; controller.enabled=true;
+        foreach(var frame in prediction.Pending) Simulate(frame);
+        Vector3 correction=before-transform.position;
+        if(correction.sqrMagnitude<9) visualCorrection+=correction;
+    }
+    public void ConfigureLaneServer(int lane,float center,float halfWidth)
+    { if(!IsServer) return; laneId.Value=Mathf.Max(0,lane); laneCenterX.Value=center; laneHalfWidth.Value=Mathf.Max(.5f,halfWidth); }
+    public void TeleportToLaneServer(int lane,Vector3 position,float halfWidth)
     {
         if(!IsServer) return;
-        if(!controller.enabled) return;
-        HandleMovement();
+        controller.enabled=false; transform.position=position; controller.enabled=true;
+        ConfigureLaneServer(lane,position.x,halfWidth); revision++; velocity=Vector3.zero;
     }
-
-
-    void OnMove(InputValue value)
-    {
-        if(!IsOwner) return;
-        float moveInput = value.Get<float>();
-        SubmitMoveInputServerRpc(moveInput);
-    }
-
-    [ServerRpc]
-    private void SubmitMoveInputServerRpc(float input)
-    {
-        serverMoveInput = Mathf.Clamp(input,-1f,1f);
-    }
-
-
-    void HandleMovement()
-    {
-        PlayerRunPhase currentPhase = playerPhase.Value;
-        if (currentPhase == PlayerRunPhase.Lobby ||
-            currentPhase == PlayerRunPhase.RewardChoice ||
-            currentPhase == PlayerRunPhase.WaitingAtExit ||
-            currentPhase == PlayerRunPhase.Eliminated)
-        {
-            return;
-        }
-
-        bool forwardEnabled = currentPhase == PlayerRunPhase.Running;
-        float zSpeed = forwardEnabled? forwardSpeed:0f;
-
-
-        // 玩家这一帧本来想横向移动多少
-        float horizontalDelta =
-            serverMoveInput *
-            horizontalSpeed *
-            Time.deltaTime;
-
-
-        // 预计到达的位置
-        float targetX =
-            transform.position.x +
-            horizontalDelta;
-
-
-        // 先把目标位置限制在道路内
-        targetX =
-            Mathf.Clamp(
-                targetX,
-                laneCenterX.Value - laneHalfWidth.Value,
-                laneCenterX.Value + laneHalfWidth.Value
-            );
-
-
-        // 最终这一帧实际允许移动多少
-        float finalHorizontalDelta =
-            targetX -
-            transform.position.x;
-
-
-        Vector3 displacement =
-            new Vector3(
-                finalHorizontalDelta,
-                -2f * Time.deltaTime,
-                zSpeed *
-                Time.deltaTime
-            );
-
-
-        controller.Move(
-            displacement
-        );
-    }
-
-    public void ConfigureLaneServer(int newLaneId, float centerX, float halfWidth)
-    {
-        if (!IsServer)
-            return;
-
-        laneId.Value = Mathf.Max(0, newLaneId);
-        laneCenterX.Value = centerX;
-        laneHalfWidth.Value = Mathf.Max(0.5f, halfWidth);
-    }
-
-    public void TeleportToLaneServer(
-        int newLaneId,
-        Vector3 position,
-        float halfWidth)
-    {
-        if (!IsServer)
-            return;
-
-        bool wasEnabled = controller != null && controller.enabled;
-        if (wasEnabled)
-            controller.enabled = false;
-
-        transform.position = position;
-        ConfigureLaneServer(newLaneId, position.x, halfWidth);
-
-        if (wasEnabled)
-            controller.enabled = true;
-    }
-
-    public void BeginRunServer()
-    {
-        SetPhaseServer(PlayerRunPhase.Running);
-    }
-
-    public void EnterCombatServer()
-    {
-        SetPhaseServer(PlayerRunPhase.Combat);
-    }
-
-    public void EnterRewardChoiceServer()
-    {
-        SetPhaseServer(PlayerRunPhase.RewardChoice);
-    }
-
-    public void ResumeRunningServer()
-    {
-        SetPhaseServer(PlayerRunPhase.Running);
-    }
-
-    public void WaitAtExitServer()
-    {
-        SetPhaseServer(PlayerRunPhase.WaitingAtExit);
-    }
-
-    private void SetPhaseServer(PlayerRunPhase phase)
-    {
-        if (IsServer)
-            playerPhase.Value = phase;
-    }
-
-    private void HandlePopulationDepleted()
-    {
-        if (!IsServer)
-            return;
-
-        playerPhase.Value = PlayerRunPhase.Eliminated;
-        GameManager.instance?.NotifyRunnerEliminated(this);
-    }
-
+    public void BeginRunServer()=>SetPhase(PlayerRunPhase.Running);
+    public void EnterCombatServer()=>SetPhase(PlayerRunPhase.Combat);
+    public void EnterRewardChoiceServer()=>SetPhase(PlayerRunPhase.RewardChoice);
+    public void ResumeRunningServer()=>SetPhase(PlayerRunPhase.Running);
+    public void WaitAtExitServer()=>SetPhase(PlayerRunPhase.WaitingAtExit);
+    private void SetPhase(PlayerRunPhase value) { if(IsServer) playerPhase.Value=value; }
+    private void HandleDepleted() { if(!IsServer)return; SetPhase(PlayerRunPhase.Eliminated); GameManager.instance?.NotifyRunnerEliminated(this); }
 }

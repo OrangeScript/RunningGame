@@ -40,6 +40,7 @@ public static class RunningPresentationCapture
             Canvas.ForceUpdateCanvases();
             for(int i=0;i<scrolls.Length;i++) scrolls[i].normalizedPosition=scrollPositions[i];
             Canvas.ForceUpdateCanvases();
+            foreach(var hud in Object.FindObjectsByType<ArenaHUD>(FindObjectsSortMode.None))hud.RefreshFocusPoint();
             camera.Render();
             RenderTexture.active = texture;
             var image = new Texture2D(1600,900,TextureFormat.RGB24,false);

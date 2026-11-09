@@ -7,6 +7,8 @@ public abstract class ItemRuntime
     protected ItemManager Owner { get; private set; }
 
     public virtual bool CanActivate => false;
+    public virtual float CooldownDuration => 0;
+    public virtual float CooldownRemaining => 0;
 
     public virtual void OnAcquire(ItemManager owner)
     {
@@ -40,5 +42,6 @@ public abstract class ItemRuntime
     {
         return false;
     }
+    public virtual void ModifyArenaStats(ArenaBuildStats stats) { }
 
 }

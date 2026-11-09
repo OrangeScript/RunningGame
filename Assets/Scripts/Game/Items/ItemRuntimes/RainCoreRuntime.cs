@@ -56,7 +56,14 @@ public class RainCoreRuntime : ItemRuntime
         {
             return;
         }
-        timer = interval;
+        timer = Owner!=null&&Owner.CurrentMode==GameplayMode.BossArena?Mathf.Min(interval,3):interval;
+        if(Owner!=null&&Owner.CurrentMode==GameplayMode.BossArena)
+        {
+            var boss=Object.FindFirstObjectByType<ArenaBossController>();
+            if(boss!=null&&Vector3.Distance(ownerTransform.position,boss.transform.position)<=radius)
+                boss.ApplyArenaDamage(new ArenaDamageInfo(.25f,1,Owner.OwnerClientId,boss.transform.position,Vector3.forward,ElementType.Water));
+            return;
+        }
         ApplyWaterAura();
     }
 

@@ -141,9 +141,19 @@ public class RoomSession : MonoBehaviour
         if(StartHostRoom()) StartMatch();
     }
 
+    public void StartSoloBoss()
+    {
+        if(phase != RoomPhase.Menu) return;
+        selectedMode = GameMode.Arena;
+        soloRunning = true;
+        preservedBuilds.Clear(); preservedFirepower.Clear();
+        if(StartHostRoom()) StartMatch();
+    }
+
     bool StartHostRoom()
     {
         if(networkManager.IsListening) return false;
+        preservedBuilds.Clear();preservedFirepower.Clear();
         phase = RoomPhase.Lobby;
         networkManager.ConnectionApprovalCallback = ApprovalCheck;
         if (!networkManager.StartHost())
@@ -233,6 +243,15 @@ public class RoomSession : MonoBehaviour
         phase = RoomPhase.Playing;
         Debug.LogError($"Boss Arena load failed: {result}");
         return false;
+    }
+
+    public void RetryBossEncounter()
+    {
+        if(!networkManager.IsServer||phase!=RoomPhase.Playing||selectedMode!=GameMode.Arena)return;
+        CapturePlayerBuilds();
+        phase=RoomPhase.Loading;
+        if(networkManager.SceneManager.LoadScene(arenaScene,LoadSceneMode.Single)!=SceneEventProgressStatus.Started)
+            phase=RoomPhase.Playing;
     }
 
     private void OnSceneLoaded(
@@ -384,7 +403,8 @@ public class RoomSession : MonoBehaviour
                 ? itemManager.CaptureBuildSnapshot()
                 : System.Array.Empty<PlayerItemSnapshot>();
             CrowdManager runnerStats = playerObject != null ? playerObject.GetComponent<CrowdManager>() : null;
-            preservedFirepower[pair.Key] = runnerStats != null ? runnerStats.Firepower : 20;
+            ArenaPlayerNetwork arenaStats=playerObject!=null?playerObject.GetComponent<ArenaPlayerNetwork>():null;
+            preservedFirepower[pair.Key] = runnerStats != null ? runnerStats.Firepower : arenaStats!=null?arenaStats.Firepower:20;
         }
     }
 
@@ -408,10 +428,27 @@ public class RoomSession : MonoBehaviour
 
             itemManager.SetGameplayModeServer(GameplayMode.BossArena);
             if (!preservedBuilds.TryGetValue(pair.Key, out PlayerItemSnapshot[] build))
+            {
+                GrantBossPracticeBuild(itemManager,pair.Key);
                 continue;
+            }
 
             for (int index = 0; index < build.Length; index++)
                 itemManager.TryRestoreServer(build[index]);
+        }
+    }
+
+    private void GrantBossPracticeBuild(ItemManager items,ulong clientId)
+    {
+        // Direct practice has a viable build. A tower transition always keeps
+        // exactly the player's earned equipment, even when that build is empty.
+        int[][] teamBuilds={new[]{1302,1323},new[]{1301,1322},new[]{1002,1324},new[]{1303,1325}};
+        var ids=new List<ulong>(networkManager.ConnectedClientsIds);ids.Sort();
+        int[] loadout=ids.Count==1?new[]{1302,1301,1322}:teamBuilds[Mathf.Max(0,ids.IndexOf(clientId))%4];
+        foreach(int id in loadout)
+        {
+            var definition=RuntimeItemCatalog.Default?.Find(id);
+            if(definition!=null)items.TryAcquireServer(definition,ItemAcquisitionSource.Debug);
         }
     }
 
@@ -513,9 +550,10 @@ public class RoomSession : MonoBehaviour
         mainMenuPanel = new GameObject("MainMenu",typeof(RectTransform));
         mainMenuPanel.transform.SetParent(background,false);
         MinimalUI.Stretch((RectTransform)mainMenuPanel.transform);
-        MenuButton(mainMenuPanel.transform,"Solo","独自出发",.15f,StartSoloRunning,true);
-        MenuButton(mainMenuPanel.transform,"Create","创建房间",.39f,CreateRoom);
-        MenuButton(mainMenuPanel.transform,"Join","加入房间",.63f,JoinRoom);
+        MenuButton(mainMenuPanel.transform,"Solo","独自出发",.15f,StartSoloRunning,true,.16f);
+        MenuButton(mainMenuPanel.transform,"BossPractice","首领练习",.33f,StartSoloBoss,false,.16f);
+        MenuButton(mainMenuPanel.transform,"Create","创建房间",.51f,CreateRoom,false,.16f);
+        MenuButton(mainMenuPanel.transform,"Join","加入房间",.69f,JoinRoom,false,.16f);
         lobbyPanel = new GameObject("Lobby",typeof(RectTransform));
         lobbyPanel.transform.SetParent(background,false);
         MinimalUI.Stretch((RectTransform)lobbyPanel.transform);
@@ -535,10 +573,10 @@ public class RoomSession : MonoBehaviour
         MinimalUI.Place(footer.rectTransform,new Vector2(.15f,.05f),new Vector2(.85f,.12f));
     }
 
-    private static Button MenuButton(Transform parent,string name,string label,float x,UnityEngine.Events.UnityAction action,bool primary=false)
+    private static Button MenuButton(Transform parent,string name,string label,float x,UnityEngine.Events.UnityAction action,bool primary=false,float width=.22f)
     {
         var button = MinimalUI.Button(parent,name,label,action,primary);
-        MinimalUI.Place((RectTransform)button.transform,new Vector2(x,.33f),new Vector2(x+.22f,.41f));
+        MinimalUI.Place((RectTransform)button.transform,new Vector2(x,.33f),new Vector2(x+width,.41f));
         return button;
     }
 

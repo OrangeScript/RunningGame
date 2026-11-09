@@ -24,6 +24,8 @@ public sealed class ContextualItemRuntime : ItemRuntime
     }
 
     public override bool CanActivate => Current != null && Current.CanActivate;
+    public override float CooldownDuration => Current?.CooldownDuration ?? 0;
+    public override float CooldownRemaining => Current?.CooldownRemaining ?? 0;
 
     private ItemRuntime Current
     {
@@ -79,6 +81,7 @@ public sealed class ContextualItemRuntime : ItemRuntime
     {
         return Current != null && Current.TryActivate();
     }
+    public override void ModifyArenaStats(ArenaBuildStats stats) => Current?.ModifyArenaStats(stats);
 
     private void AddUnique(ItemRuntime runtime)
     {

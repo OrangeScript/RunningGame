@@ -1,0 +1,6 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "node fetch-icons.mjs" },
+  "dependencies": { "@resvg/resvg-js": "2.6.2" }
+}

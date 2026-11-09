@@ -76,3 +76,5 @@ sysinfo.txt
 *.bak
 *.swp
 *~
+# Icon build dependencies (the exported SVG/PNG assets are versioned).
+Tools/icons/node_modules/

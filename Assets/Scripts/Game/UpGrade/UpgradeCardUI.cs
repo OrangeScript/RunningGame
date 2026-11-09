@@ -10,6 +10,7 @@ public class UpgradeCardUI : MonoBehaviour
     private TMP_Text description;
     private TMP_Text usage;
     private Button button;
+    private Image icon;
     public void Setup(UpgradeData item,Action<UpgradeData> selected)
     {
         if (button == null) Build();
@@ -17,6 +18,7 @@ public class UpgradeCardUI : MonoBehaviour
         category.text = $"{kind}   /   {Rarity(item.Rarity)}";
         title.text = item.UpgradeName;
         description.text = item.Description;
+        icon.sprite=item.Icon;icon.enabled=icon.sprite!=null;
         usage.text = item.Category == ItemCategory.Temporary ? $"持续 {item.TemporaryDuration:0} 秒" :
             item.Category == ItemCategory.Active ? "空格 / 2 使用 · 首领战 Q / E" : "获得后持续生效";
         button.onClick.RemoveAllListeners();
@@ -31,7 +33,10 @@ public class UpgradeCardUI : MonoBehaviour
         colors.selectedColor = Color.white; colors.fadeDuration = .12f; button.colors = colors;
         var outline = gameObject.AddComponent<Outline>(); outline.effectColor = MinimalUI.Line; outline.effectDistance = new Vector2(1,-1);
         category = MinimalUI.Text(transform,"Category","",14,MinimalUI.Muted);
-        MinimalUI.Place(category.rectTransform,new Vector2(.10f,.78f),new Vector2(.9f,.92f));
+        MinimalUI.Place(category.rectTransform,new Vector2(.10f,.78f),new Vector2(.7f,.92f));
+        var iconRect=MinimalUI.Box(transform,"Icon",MinimalUI.Accent);
+        MinimalUI.Place(iconRect,new Vector2(.74f,.76f),new Vector2(.9f,.93f));
+        icon=iconRect.GetComponent<Image>();icon.preserveAspect=true;
         title = MinimalUI.Text(transform,"Name","",26);
         MinimalUI.Place(title.rectTransform,new Vector2(.10f,.58f),new Vector2(.9f,.8f));
         description = MinimalUI.Text(transform,"Description","",17,MinimalUI.Muted,TextAlignmentOptions.TopLeft);

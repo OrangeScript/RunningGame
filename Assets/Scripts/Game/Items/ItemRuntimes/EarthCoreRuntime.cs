@@ -7,6 +7,6 @@ public class EarthCoreRuntime : ItemRuntime
     public override void ModifyProjectile(ProjectileSpec spec)
     {
         base.ModifyProjectile(spec);
-        spec.element = ElementType.Earth;
+        spec.AddElement(ElementType.Earth);
     }
 }

@@ -128,7 +128,7 @@ public static class ProceduralObstacleField
         Collider collider = obstacle.GetComponent<Collider>();
         if (collider != null)
         {
-            collider.enabled = serverPhysics;
+            collider.enabled = true;
             collider.isTrigger = kind != ProceduralObstacleKind.Block;
         }
 

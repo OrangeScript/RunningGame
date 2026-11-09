@@ -72,7 +72,8 @@ public class ThunderStrikerRuntime : ActiveAttackItemRuntime
             1,
             owner.OwnerClientId,
             boss.transform.position,
-            direction.normalized));
+            direction.normalized,
+            ElementType.Lightning));
         return true;
     }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -6,6 +7,15 @@ using UnityEngine;
 [RequireComponent(typeof(NetworkObject))]
 public class ArenaPlayerNetwork : NetworkBehaviour, IArenaDamageable
 {
+    public static readonly HashSet<ArenaPlayerNetwork> ActivePlayers=new HashSet<ArenaPlayerNetwork>();
+    private readonly NetworkVariable<float> grazeCharge=new NetworkVariable<float>();
+    private float invulnerableUntil,shieldUntil,shieldPoints,nextRegeneration;
+    private int shotNumber;
+    private Vector2 localAim=Vector2.up;
+    private bool localFireHeld;
+    private float visualHurtUntil;
+    public float GrazeCharge=>grazeCharge.Value;
+    public float HitRadius=>IsFocused?.16f:.22f;
     [Header("Components")]
     [SerializeField] private ArenaInputReader inputReader;
     [SerializeField] private ArenaMotor motor;
@@ -14,8 +24,6 @@ public class ArenaPlayerNetwork : NetworkBehaviour, IArenaDamageable
     [SerializeField] private ItemManager itemManager;
 
     [Header("Input Networking")]
-    [SerializeField, Range(5f, 60f)] private float inputSendRate = 30f;
-    [SerializeField, Range(5, 120)] private int maxAcceptedInputsPerSecond = 45;
     [SerializeField, Min(0.05f)] private float inputTimeout = 0.35f;
 
     [Header("State Snapshots")]
@@ -48,18 +56,22 @@ public class ArenaPlayerNetwork : NetworkBehaviour, IArenaDamageable
     }
 
     private ArenaCameraRig boundCameraRig;
-    private Vector2 serverMove;
     private Vector2 serverAim = Vector2.up;
     private bool serverFireHeld;
     private bool hasReceivedInput;
     private ushort lastReceivedSequence;
     private ushort localSequence;
     private double lastServerInputTime;
-    private double nextInputSendTime;
     private double nextSnapshotSendTime;
     private double nextFireTime;
-    private double inputRateWindowStart;
-    private int inputsInCurrentWindow;
+    private readonly MotionPrediction prediction = new MotionPrediction();
+    private readonly MovementInputBudget movementBudget = new MovementInputBudget();
+    private float inputAccumulator;
+    private double lastSnapshotTime = -1;
+    private Vector3 visualCorrection;
+    public Vector3 LatestAuthorityPosition { get; private set; }
+    public bool IsLocallyPredicted => IsOwner && !IsServer && motor != null && motor.SimulationEnabled;
+    public bool IsFocused { get; private set; }
 
     public event Action<float, float> HealthChanged;
 
@@ -78,12 +90,13 @@ public class ArenaPlayerNetwork : NetworkBehaviour, IArenaDamageable
     {
         ResolveComponents();
         currentHealth.OnValueChanged += HandleHealthChanged;
+        ActivePlayers.Add(this);
 
         if (IsServer)
         {
             currentHealth.Value = Mathf.Max(1f, maxHealth);
+            invulnerableUntil=Time.time+1.2f;
             lastServerInputTime = Time.unscaledTimeAsDouble;
-            inputRateWindowStart = lastServerInputTime;
         }
 
         bool alive = currentHealth.Value > 0f && IsParticipatingPawn;
@@ -94,7 +107,7 @@ public class ArenaPlayerNetwork : NetworkBehaviour, IArenaDamageable
 
         if (motor != null)
         {
-            motor.SetSimulationEnabled(IsServer && alive);
+            motor.SetSimulationEnabled((IsServer || IsOwner) && alive);
         }
 
         if (remoteBuffer != null)
@@ -113,6 +126,7 @@ public class ArenaPlayerNetwork : NetworkBehaviour, IArenaDamageable
     public override void OnNetworkDespawn()
     {
         currentHealth.OnValueChanged -= HandleHealthChanged;
+        ActivePlayers.Remove(this);
 
         if (inputReader != null)
         {
@@ -149,14 +163,80 @@ public class ArenaPlayerNetwork : NetworkBehaviour, IArenaDamageable
         double now = Time.unscaledTimeAsDouble;
         if (IsOwner)
         {
-            SendLocalInput(now);
+            SimulateOwnerInputs();
+            if(!IsServer&&localFireHeld&&IsArenaAlive)TryFire(now);
         }
 
         if (IsServer)
         {
-            SimulateServer(now, Time.deltaTime);
+            SimulateServer(now);
             PublishSnapshotIfDue(now);
+            if(Time.time>=nextRegeneration)
+            { nextRegeneration=Time.time+1; HealServer(itemManager!=null?itemManager.GetArenaStats().Regeneration:0); }
         }
+        if(IsOwner&&UnityEngine.InputSystem.Keyboard.current!=null&&UnityEngine.InputSystem.Keyboard.current.rKey.wasPressedThisFrame)
+            RequestGrazeBurstServerRpc();
+    }
+
+    private void LateUpdate()
+    {
+        Transform avatar=transform.Find("ArenaAvatar");
+        if (avatar == null) return;
+        if(IsOwner&&!IsServer)
+        {
+            visualCorrection=Vector3.Lerp(visualCorrection,Vector3.zero,1-Mathf.Exp(-24*Time.deltaTime));
+            avatar.localPosition=Vector3.up+transform.InverseTransformVector(visualCorrection);
+        }
+        var body=avatar.GetComponent<Renderer>();
+        if(body!=null)body.enabled=Time.time>=visualHurtUntil||((int)(Time.time*16)&1)==0;
+    }
+
+    private void SimulateOwnerInputs()
+    {
+        if (inputReader == null || motor == null || !IsArenaAlive) return;
+        inputAccumulator=Mathf.Min(.1f,inputAccumulator+Time.deltaTime);
+        while (inputAccumulator >= MotionPrediction.Step)
+        {
+            inputAccumulator-=MotionPrediction.Step;
+            if (!inputReader.TryCapture(++localSequence,out ArenaInputFrame frame)) continue;
+            ArenaProtocol.TryDecode(frame,out _,out localAim,out localFireHeld);
+            if (IsServer) ProcessCommand(frame);
+            else
+            {
+                SimulateFrame(frame);
+                prediction.Record(frame);
+                SubmitInputBatchServerRpc(prediction.RedundantBatch());
+            }
+        }
+    }
+
+    private void SimulateFrame(ArenaInputFrame frame)
+    {
+        if (!ArenaProtocol.TryDecode(frame,out Vector2 move,out Vector2 aim,out _)) return;
+        IsFocused=frame.FocusHeld;
+        float speed = frame.FocusHeld ? .42f : 1f;
+        if (itemManager != null) speed*=itemManager.ArenaMoveSpeedMultiplier;
+        motor.Simulate(move,aim,MotionPrediction.Step,speed);
+        animatorDriver?.SetMotion(motor.PlanarVelocity,motor.MaxSpeed);
+    }
+
+    [ServerRpc(Delivery = RpcDelivery.Unreliable)]
+    private void SubmitInputBatchServerRpc(ArenaInputFrame[] frames,ServerRpcParams rpc=default)
+    {
+        if (rpc.Receive.SenderClientId != OwnerClientId || frames == null || frames.Length > 4) return;
+        foreach (var frame in frames) ProcessCommand(frame);
+    }
+
+    private void ProcessCommand(ArenaInputFrame frame)
+    {
+        if (!IsArenaAlive || motor == null ||
+            (hasReceivedInput && !ArenaProtocol.IsSequenceNewer(frame.Sequence,lastReceivedSequence))) return;
+        if (!ArenaProtocol.TryDecode(frame,out _,out Vector2 aim,out bool fire)) return;
+        double now=Time.unscaledTimeAsDouble;
+        if (!movementBudget.Consume(now)) return;
+        hasReceivedInput=true; lastReceivedSequence=frame.Sequence;
+        serverAim=aim; serverFireHeld=fire; lastServerInputTime=now;
+        SimulateFrame(frame);
     }
 
     public void ApplyArenaDamage(ArenaDamageInfo damage)
@@ -166,12 +246,28 @@ public class ArenaPlayerNetwork : NetworkBehaviour, IArenaDamageable
             return;
         }
 
-        if (!ArenaProtocol.IsFinite(damage.Amount) || damage.Amount <= 0f)
+        if (!ArenaProtocol.IsFinite(damage.Amount) || damage.Amount <= 0f || Time.time<invulnerableUntil)
         {
             return;
         }
 
-        currentHealth.Value = Mathf.Max(0f, currentHealth.Value - damage.Amount);
+        var stats=itemManager!=null?itemManager.GetArenaStats():new ArenaBuildStats();
+        float amount=damage.Amount*(1-Mathf.Clamp(stats.DamageReduction,0,.45f));
+        if(Time.time<shieldUntil&&shieldPoints>0)
+        { float absorbed=Mathf.Min(shieldPoints,amount); shieldPoints-=absorbed; amount-=absorbed; }
+        invulnerableUntil=Time.time+.6f+stats.ExtraInvulnerability;
+        currentHealth.Value = Mathf.Max(0f, currentHealth.Value - amount);
+    }
+    public void HealServer(float amount) { if(IsServer&&IsArenaAlive&&amount>0)currentHealth.Value=Mathf.Min(maxHealth,currentHealth.Value+amount); }
+    public void GrantShieldServer(float amount,float duration=6) { if(IsServer){shieldPoints=Mathf.Max(shieldPoints,amount);shieldUntil=Time.time+duration;} }
+    public void AddGrazeServer()
+    { if(IsServer)grazeCharge.Value=Mathf.Min(100,grazeCharge.Value+4*(itemManager!=null?itemManager.GetArenaStats().GrazeMultiplier:1)); }
+    [ServerRpc]
+    private void RequestGrazeBurstServerRpc()
+    {
+        if(!IsArenaAlive||grazeCharge.Value<100)return;
+        grazeCharge.Value=0;FindFirstObjectByType<ArenaBootstrap>()?.ClearBossBullets(transform.position,6);
+        GrantShieldServer(1,3);
     }
 
     /// <summary>
@@ -193,90 +289,12 @@ public class ArenaPlayerNetwork : NetworkBehaviour, IArenaDamageable
         return true;
     }
 
-    private void SendLocalInput(double now)
-    {
-        if (inputReader == null || now < nextInputSendTime)
-        {
-            return;
-        }
-
-        float safeRate = Mathf.Clamp(inputSendRate, 5f, 60f);
-        nextInputSendTime = now + 1d / safeRate;
-        localSequence++;
-
-        if (inputReader.TryCapture(localSequence, out ArenaInputFrame frame))
-        {
-            SubmitInputServerRpc(frame);
-        }
-    }
-
-    [ServerRpc(Delivery = RpcDelivery.Unreliable)]
-    private void SubmitInputServerRpc(
-        ArenaInputFrame frame,
-        ServerRpcParams rpcParams = default)
-    {
-        if (rpcParams.Receive.SenderClientId != OwnerClientId)
-        {
-            return;
-        }
-
-        double now = Time.unscaledTimeAsDouble;
-        if (!ConsumeInputRateBudget(now))
-        {
-            return;
-        }
-
-        if (hasReceivedInput &&
-            !ArenaProtocol.IsSequenceNewer(frame.Sequence, lastReceivedSequence))
-        {
-            return;
-        }
-
-        if (!ArenaProtocol.TryDecode(
-            frame,
-            out Vector2 decodedMove,
-            out Vector2 decodedAim,
-            out bool decodedFire))
-        {
-            return;
-        }
-
-        hasReceivedInput = true;
-        lastReceivedSequence = frame.Sequence;
-        serverMove = decodedMove;
-        serverAim = decodedAim;
-        serverFireHeld = decodedFire;
-        lastServerInputTime = now;
-    }
-
-    private bool ConsumeInputRateBudget(double now)
-    {
-        if (now - inputRateWindowStart >= 1d)
-        {
-            inputRateWindowStart = now;
-            inputsInCurrentWindow = 0;
-        }
-
-        int safeLimit = Mathf.Clamp(maxAcceptedInputsPerSecond, 5, 120);
-        if (inputsInCurrentWindow >= safeLimit)
-        {
-            return false;
-        }
-
-        inputsInCurrentWindow++;
-        return true;
-    }
-
-    private void SimulateServer(double now, float deltaTime)
+    private void SimulateServer(double now)
     {
         bool inputFresh = hasReceivedInput && now - lastServerInputTime <= inputTimeout;
-        Vector2 move = inputFresh && IsArenaAlive ? serverMove : Vector2.zero;
         bool fire = inputFresh && IsArenaAlive && serverFireHeld;
 
-        if (motor != null)
-        {
-            motor.Simulate(move, serverAim, deltaTime);
-        }
+        if (!inputFresh) motor?.Stop();
 
         if (animatorDriver != null)
         {
@@ -319,7 +337,8 @@ public class ArenaPlayerNetwork : NetworkBehaviour, IArenaDamageable
         float damageMultiplier = SanitizeRange(plan.damageMultiplier, 1f, 0f, 1000f);
         nextFireTime = now + interval;
 
-        Vector3 forward = new Vector3(serverAim.x, 0f, serverAim.y);
+        Vector2 aim=IsServer?serverAim:localAim;
+        Vector3 forward = new Vector3(aim.x, 0f, aim.y);
         if (!ArenaProtocol.IsFinite(forward) || forward.sqrMagnitude < 0.0001f)
         {
             forward = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
@@ -358,6 +377,7 @@ public class ArenaPlayerNetwork : NetworkBehaviour, IArenaDamageable
         {
             itemManager.ModifyProjectile(spec);
         }
+        if(spec.secondaryElement!=ElementType.None&&(shotNumber++&1)==1)spec.element=spec.secondaryElement;
 
         float damage = SanitizeRange(spec.damage, baseProjectileDamage, 0f, 100000f);
         float speed = SanitizeRange(spec.speed, baseProjectileSpeed, 0.1f, 100f);
@@ -366,6 +386,11 @@ public class ArenaPlayerNetwork : NetworkBehaviour, IArenaDamageable
         Vector3 origin = firePoint != null
             ? firePoint.position
             : transform.position + Vector3.up * 0.75f + direction * 0.65f;
+        if(!IsServer)
+        {
+            ArenaRuntimeProjectile.SpawnVisual(origin,direction,speed,projectileLifetime,size,teamId,spec.element,spec.bounce);
+            return;
+        }
 
         if (projectilePrefab == null)
         {
@@ -377,14 +402,20 @@ public class ArenaPlayerNetwork : NetworkBehaviour, IArenaDamageable
                 damage,
                 size,
                 teamId,
-                OwnerClientId);
+                OwnerClientId,
+                spec.element,
+                spec.pierce,
+                spec.bounce,
+                spec.explosionRadius>0?spec.explosionDamageMultiplier:0);
             SpawnRuntimeProjectileVisualClientRpc(
                 origin,
                 direction,
                 speed,
                 projectileLifetime,
                 size,
-                teamId);
+                teamId,
+                spec.element,
+                spec.bounce);
             return;
         }
 
@@ -406,7 +437,8 @@ public class ArenaPlayerNetwork : NetworkBehaviour, IArenaDamageable
             damage,
             size,
             teamId,
-            OwnerClientId);
+            OwnerClientId,
+            spec.element);
 
         NetworkObject projectileObject = projectile.NetworkObject;
         if (projectileObject == null)
@@ -425,9 +457,11 @@ public class ArenaPlayerNetwork : NetworkBehaviour, IArenaDamageable
         float speed,
         float lifetime,
         float size,
-        int projectileTeam)
+        int projectileTeam,
+        ElementType element,
+        int bounce)
     {
-        if (IsServer)
+        if (IsServer || IsOwner)
             return;
 
         ArenaRuntimeProjectile.SpawnVisual(
@@ -436,7 +470,9 @@ public class ArenaPlayerNetwork : NetworkBehaviour, IArenaDamageable
             speed,
             lifetime,
             size,
-            projectileTeam);
+            projectileTeam,
+            element,
+            bounce);
     }
 
     private void PublishSnapshotIfDue(double now)
@@ -477,6 +513,19 @@ public class ArenaPlayerNetwork : NetworkBehaviour, IArenaDamageable
             return;
         }
 
+        if (snapshot.ServerTime <= lastSnapshotTime) return;
+        lastSnapshotTime=snapshot.ServerTime;
+        LatestAuthorityPosition=snapshot.Position;
+        if (IsOwner && motor != null)
+        {
+            Vector3 previous=transform.position;
+            prediction.Acknowledge(snapshot.LastProcessedInput);
+            motor.Restore(snapshot.Position,snapshot.Velocity);
+            foreach (var frame in prediction.Pending) SimulateFrame(frame);
+            Vector3 correction=previous-transform.position;
+            if (correction.sqrMagnitude < 9) visualCorrection+=correction;
+        }
+
         if (!IsOwner && remoteBuffer != null)
         {
             remoteBuffer.Push(snapshot);
@@ -507,6 +556,7 @@ public class ArenaPlayerNetwork : NetworkBehaviour, IArenaDamageable
     private void HandleHealthChanged(float previous, float current)
     {
         HealthChanged?.Invoke(previous, current);
+        if(current<previous)visualHurtUntil=Time.time+.6f;
         bool alive = current > 0f;
 
         if (inputReader != null)
@@ -514,7 +564,7 @@ public class ArenaPlayerNetwork : NetworkBehaviour, IArenaDamageable
             inputReader.SetOwnerInputEnabled(IsOwner && alive);
         }
 
-        if (motor != null && IsServer)
+        if (motor != null && (IsServer || IsOwner))
         {
             motor.SetSimulationEnabled(alive);
             if (!alive)
@@ -525,7 +575,6 @@ public class ArenaPlayerNetwork : NetworkBehaviour, IArenaDamageable
 
         if (!alive)
         {
-            serverMove = Vector2.zero;
             serverFireHeld = false;
             animatorDriver?.ResetMotion();
         }
@@ -569,7 +618,7 @@ public class ArenaPlayerNetwork : NetworkBehaviour, IArenaDamageable
         bool alive = currentHealth.Value > 0f && IsParticipatingPawn;
 
         inputReader?.SetOwnerInputEnabled(IsOwner && alive);
-        motor?.SetSimulationEnabled(IsServer && alive);
+        motor?.SetSimulationEnabled((IsServer || IsOwner) && alive);
         remoteBuffer?.SetPlaybackEnabled(!IsServer && !IsOwner);
 
         if (IsServer && itemManager != null)
@@ -595,8 +644,6 @@ public class ArenaPlayerNetwork : NetworkBehaviour, IArenaDamageable
 
     private void OnValidate()
     {
-        inputSendRate = Mathf.Clamp(inputSendRate, 5f, 60f);
-        maxAcceptedInputsPerSecond = Mathf.Clamp(maxAcceptedInputsPerSecond, 5, 120);
         inputTimeout = Mathf.Max(0.05f, inputTimeout);
         snapshotSendRate = Mathf.Clamp(snapshotSendRate, 1f, 30f);
         baseShotsPerSecond = Mathf.Max(0.1f, baseShotsPerSecond);

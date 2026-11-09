@@ -3,146 +3,49 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class ArenaCameraRig : MonoBehaviour
 {
-    [Header("References")]
     [SerializeField] private Camera outputCamera;
     [SerializeField] private Transform target;
-
-    [Header("Top-down View")]
-    [SerializeField, Min(0.1f)] private float distance = 16f;
-    [SerializeField, Range(35f, 89f)] private float pitch = 68f;
-    [SerializeField] private float yaw;
-    [SerializeField] private Vector3 targetOffset = new Vector3(0f, 0.75f, 0f);
-
-    [Header("Damping")]
-    [SerializeField, Min(0f)] private float positionDamping = 12f;
-    [SerializeField, Min(0f)] private float rotationDamping = 16f;
-    [SerializeField] private bool snapOnBind = true;
-
-    public Camera OutputCamera => outputCamera;
-    public Transform Target => target;
-
-    private void Awake()
+    [SerializeField] private Vector2 deadZoneHalfSize=new Vector2(4.5f,3f);
+    [SerializeField] private float smoothTime=.22f;
+    [SerializeField] private float viewSize=14f;
+    private Vector3 center,velocity;
+    public Camera OutputCamera=>outputCamera;
+    public Transform Target=>target;
+    public Vector3 FocusPoint=>center;
+    private void Awake() { outputCamera=GetComponent<Camera>(); center=new Vector3(0,.75f,0); }
+    public void Bind(Transform owner)
     {
-        ResolveCamera();
+        if(owner==null||target==owner) return;
+        target=owner; center=new Vector3(0,.75f,0); velocity=Vector3.zero; UpdatePose(true);
     }
-
-    private void LateUpdate()
-    {
-        if (target == null)
-        {
-            TryBindLocalOwner();
-            if (target == null)
-            {
-                return;
-            }
-        }
-
-        UpdatePose(false);
-    }
-
-    public void Bind(Transform localOwner)
-    {
-        if (localOwner == null || target == localOwner)
-        {
-            return;
-        }
-
-        target = localOwner;
-        ResolveCamera();
-        if (snapOnBind)
-        {
-            UpdatePose(true);
-        }
-    }
-
-    public void Unbind(Transform expectedTarget = null)
-    {
-        if (expectedTarget != null && target != expectedTarget)
-        {
-            return;
-        }
-
-        target = null;
-    }
-
+    public void Unbind(Transform expected=null) { if(expected==null||target==expected) target=null; }
     public bool TryBindLocalOwner()
     {
-        ArenaPlayerNetwork[] players = FindObjectsByType<ArenaPlayerNetwork>(
-            FindObjectsInactive.Exclude,
-            FindObjectsSortMode.None);
-
-        foreach (ArenaPlayerNetwork player in players)
-        {
-            if (player != null && player.IsSpawned && player.IsOwner)
-            {
-                Bind(player.transform);
-                return true;
-            }
-        }
-
+        foreach(var player in FindObjectsByType<ArenaPlayerNetwork>(FindObjectsSortMode.None))
+            if(player.IsSpawned&&player.IsOwner) { Bind(player.transform); return true; }
         return false;
     }
-
+    private void LateUpdate() { if(target==null&&!TryBindLocalOwner())return; UpdatePose(false); }
+    public static Vector3 DeadZoneCenter(Vector3 current,Vector3 player,Vector2 halfSize)
+    {
+        Vector3 next=current;
+        if(player.x>current.x+halfSize.x) next.x=player.x-halfSize.x;
+        if(player.x<current.x-halfSize.x) next.x=player.x+halfSize.x;
+        if(player.z>current.z+halfSize.y) next.z=player.z-halfSize.y;
+        if(player.z<current.z-halfSize.y) next.z=player.z+halfSize.y;
+        return next;
+    }
     private void UpdatePose(bool snap)
     {
-        // A shared bullet-hell arena needs a readable view of every edge and
-        // the Boss. Following an individual player cropped the encounter.
-        Vector3 focusPoint = new Vector3(0,.75f,0);
-        pitch = 78f;
-        distance = 32f;
-        if (outputCamera != null)
-        {
-            outputCamera.orthographic = true;
-            outputCamera.orthographicSize = Mathf.Max(15f,21f/Mathf.Max(.5f,outputCamera.aspect));
-            outputCamera.clearFlags = CameraClearFlags.SolidColor;
-            outputCamera.backgroundColor = new Color(.83f,.86f,.82f);
-        }
-        Quaternion orbit = Quaternion.Euler(pitch, yaw, 0f);
-        Vector3 desiredPosition = focusPoint + orbit * (Vector3.back * distance);
-        Quaternion desiredRotation = Quaternion.LookRotation(
-            focusPoint - desiredPosition,
-            Vector3.up);
-
-        if (snap)
-        {
-            transform.SetPositionAndRotation(desiredPosition, desiredRotation);
-            return;
-        }
-
-        float positionT = DampFactor(positionDamping, Time.unscaledDeltaTime);
-        float rotationT = DampFactor(rotationDamping, Time.unscaledDeltaTime);
-        transform.position = Vector3.Lerp(transform.position, desiredPosition, positionT);
-        transform.rotation = Quaternion.Slerp(transform.rotation, desiredRotation, rotationT);
-    }
-
-    private void ResolveCamera()
-    {
-        if (outputCamera == null)
-        {
-            outputCamera = GetComponent<Camera>();
-        }
-
-        if (outputCamera == null)
-        {
-            outputCamera = Camera.main;
-        }
-    }
-
-    private static float DampFactor(float damping, float deltaTime)
-    {
-        if (damping <= 0f)
-        {
-            return 1f;
-        }
-
-        return 1f - Mathf.Exp(-damping * Mathf.Max(0f, deltaTime));
-    }
-
-    private void OnValidate()
-    {
-        distance = Mathf.Max(0.1f, distance);
-        pitch = Mathf.Clamp(pitch, 35f, 89f);
-        positionDamping = Mathf.Max(0f, positionDamping);
-        rotationDamping = Mathf.Max(0f, rotationDamping);
+        if(target==null) return;
+        Vector3 desired=DeadZoneCenter(center,target.position,deadZoneHalfSize);
+        desired.x=Mathf.Clamp(desired.x,-6,6); desired.z=Mathf.Clamp(desired.z,-3,3);
+        center=snap?desired:Vector3.SmoothDamp(center,desired,ref velocity,smoothTime,20,Time.unscaledDeltaTime);
+        transform.SetPositionAndRotation(center+Quaternion.Euler(78,0,0)*Vector3.back*32,Quaternion.Euler(78,0,0));
+        if(outputCamera==null) return;
+        outputCamera.orthographic=true;
+        outputCamera.orthographicSize=Mathf.Max(viewSize,19/Mathf.Max(.5f,outputCamera.aspect));
+        outputCamera.clearFlags=CameraClearFlags.SolidColor;
+        outputCamera.backgroundColor=new Color(.83f,.86f,.82f);
     }
 }
