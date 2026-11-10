@@ -2,14 +2,17 @@ using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
-/// <summary>Bullets are synchronized by spawn time, with small XZ hitboxes,
-/// visible arming time, one graze per player and an authoritative clear event.</summary>
+/// <summary>Shared time-based trajectories. Hits never consume a bullet;
+/// clears disable damage immediately and visibly dissolve it.</summary>
 public sealed class ArenaBossProjectile : MonoBehaviour
 {
+    public const float DissolveDuration=.28f;
     private static readonly HashSet<ArenaBossProjectile> live=new HashSet<ArenaBossProjectile>();
     private readonly HashSet<ulong> grazed=new HashSet<ulong>();
+    private readonly HashSet<ulong> hitPlayers=new HashSet<ulong>();
     private Vector3 origin,direction;
     private float speed,damage,radius,lifetime,warning;
+    private float dissolveStarted;
     private double born;
     private bool authoritative,cleared,armed;
     private Renderer visual;
@@ -17,6 +20,9 @@ public sealed class ArenaBossProjectile : MonoBehaviour
     private LineRenderer warningLine;
     private static Material warningMaterial;
     public static int LiveCount=>live.Count;
+    public bool IsCleared=>cleared;
+    public bool IsAuthoritative=>authoritative;
+    public double BornTime=>born;
     public static ArenaBossProjectile Spawn(Vector3 origin,Vector3 direction,float speed,float lifetime,
         float damage,float radius,bool authoritative,float warning=.35f,byte style=0,double born=-1)
     {
@@ -43,19 +49,28 @@ public sealed class ArenaBossProjectile : MonoBehaviour
             bullet.warningLine.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;
             bullet.warningLine.receiveShadows=false;
         }
-        live.Add(bullet);root.transform.position=origin;
+        live.Add(bullet);root.transform.position=bullet.PositionAt(Now);
+        root.transform.localScale=Vector3.one*radius*2*.65f;
         return bullet;
     }
     private static double Now=>NetworkManager.Singleton!=null&&NetworkManager.Singleton.IsListening?
         NetworkManager.Singleton.ServerTime.Time:Time.timeAsDouble;
+    public Vector3 PositionAt(double time)=>EvaluatePosition(origin,direction,speed,warning,born,time);
+    public static Vector3 EvaluatePosition(Vector3 origin,Vector3 direction,float speed,float warning,double born,double time)=>
+        origin+direction*Mathf.Max(0,(float)(time-born)-warning)*speed;
     private void Update()
     {
-        if(cleared)return;
+        if(cleared)
+        {
+            float progress=(Time.unscaledTime-dissolveStarted)/DissolveDuration;
+            if(progress>=1) { Destroy(gameObject);return; }
+            transform.localScale=Vector3.one*radius*2*(1-progress);
+            RunSectionPresentation.Paint(visual,Color.Lerp(tint,Color.white,.65f+progress*.35f));
+            return;
+        }
         float age=(float)(Now-born);
-        if(age>lifetime+warning) { Destroy(gameObject); return; }
-        float travel=Mathf.Max(0,age-warning)*speed;
         Vector3 previous=transform.position;
-        Vector3 next=origin+direction*travel;
+        Vector3 next=PositionAt(Now);
         transform.position=next;
         transform.localScale=Vector3.one*radius*2*(age<warning?.65f:1);
         if(age>=warning&&!armed)
@@ -63,7 +78,7 @@ public sealed class ArenaBossProjectile : MonoBehaviour
             armed=true;RunSectionPresentation.Paint(visual,tint);
             if(warningLine!=null)warningLine.enabled=false;
         }
-        if(Mathf.Abs(next.x)>21||Mathf.Abs(next.z)>15) { Destroy(gameObject); return; }
+        if(age>lifetime+warning||Mathf.Abs(next.x)>21||Mathf.Abs(next.z)>15) { BeginDissolve(); return; }
         if(!authoritative||age<warning)return;
         foreach(var player in ArenaPlayerNetwork.ActivePlayers)
         {
@@ -71,8 +86,14 @@ public sealed class ArenaBossProjectile : MonoBehaviour
             float distance=SegmentDistance(previous,next,player.transform.position);
             if(distance<radius+player.HitRadius)
             {
-                player.ApplyArenaDamage(new ArenaDamageInfo(damage,2,0,next,direction));
-                cleared=true;Destroy(gameObject);return;
+                if(hitPlayers.Add(player.OwnerClientId))
+                {
+                    // Passing through the same bullet after a hit is not a
+                    // second, successful graze.
+                    grazed.Add(player.OwnerClientId);
+                    player.ApplyArenaDamage(new ArenaDamageInfo(damage,2,0,next,direction));
+                }
+                continue;
             }
             if(distance<radius+.72f&&grazed.Add(player.OwnerClientId))player.AddGrazeServer();
         }
@@ -83,11 +104,23 @@ public sealed class ArenaBossProjectile : MonoBehaviour
         float t=line.sqrMagnitude>.000001f?Mathf.Clamp01(Vector3.Dot(point-from,line)/line.sqrMagnitude):0;
         return Vector3.Distance(point,from+line*t);
     }
-    public static void Clear(Vector3 center,float radius)
+    public static void Clear(Vector3 center,float radius,double atTime=-1)
     {
+        double time=atTime<0?Now:atTime;
         foreach(var bullet in new List<ArenaBossProjectile>(live))
-            if(bullet!=null&&Vector2.Distance(new Vector2(center.x,center.z),new Vector2(bullet.transform.position.x,bullet.transform.position.z))<=radius)
-            { bullet.cleared=true;Object.Destroy(bullet.gameObject); }
+        {
+            if(bullet==null)continue;
+            // Compare the event's server-time position on every peer, even
+            // before a received bullet's first Update.
+            Vector3 position=bullet.PositionAt(time);position.y=center.y;
+            if((position-center).sqrMagnitude<=radius*radius)bullet.BeginDissolve();
+        }
+    }
+    private void BeginDissolve()
+    {
+        if(cleared)return;
+        cleared=true;dissolveStarted=Time.unscaledTime;live.Remove(this);
+        if(warningLine!=null)warningLine.enabled=false;
     }
     private void OnDestroy()=>live.Remove(this);
 }

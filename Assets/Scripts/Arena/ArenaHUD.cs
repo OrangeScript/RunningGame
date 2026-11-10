@@ -9,6 +9,7 @@ public sealed class ArenaHUD : MonoBehaviour
     private TMP_Text healthText;
     private TMP_Text resultText;
     private TMP_Text mechanicsText;
+    private TMP_Text clearText;
     private TMP_Text buildText;
     private GameObject resultActions;
     private UnityEngine.UI.Button retryButton;
@@ -23,7 +24,7 @@ public sealed class ArenaHUD : MonoBehaviour
         arena = GetComponent<ArenaBootstrap>();
         canvasObject = MinimalUI.Canvas(transform,"ArenaHUD",30);
         var top = MinimalUI.Box(canvasObject.transform,"TopBar",Color.clear);
-        MinimalUI.Place(top,new Vector2(.035f,.87f),new Vector2(.965f,.96f));
+        MinimalUI.Place(top,new Vector2(.035f,.925f),new Vector2(.965f,.975f));
         var left=MinimalUI.Box(top,"PlayerPaper",new Color(.95f,.95f,.91f,.94f));
         MinimalUI.Place(left,Vector2.zero,new Vector2(.30f,1));
         var right=MinimalUI.Box(top,"BossPaper",new Color(.95f,.95f,.91f,.94f));
@@ -47,6 +48,8 @@ public sealed class ArenaHUD : MonoBehaviour
         MinimalUI.Place((RectTransform)back.transform,new Vector2(.52f,0),Vector2.one);resultActions.SetActive(false);
         mechanicsText=MinimalUI.Text(canvasObject.transform,"SpellCard","",16,MinimalUI.Ink,TextAlignmentOptions.Center);
         MinimalUI.Place(mechanicsText.rectTransform,new Vector2(.25f,.955f),new Vector2(.75f,.99f));
+        clearText=MinimalUI.Text(canvasObject.transform,"ClearNotice","",16,MinimalUI.Accent,TextAlignmentOptions.Center);
+        MinimalUI.Place(clearText.rectTransform,new Vector2(.32f,.90f),new Vector2(.68f,.95f));
         hint.text="WASD 移动 · Shift 精确移动 · 鼠标 / 空格 射击 · Q / E 道具 · 擦弹蓄满后 R 消弹";
         buildText=MinimalUI.Text(canvasObject.transform,"TeamBuilds","",14,MinimalUI.Muted);
         MinimalUI.Place(buildText.rectTransform,new Vector2(.04f,.65f),new Vector2(.30f,.79f));
@@ -72,6 +75,7 @@ public sealed class ArenaHUD : MonoBehaviour
         resultActions.SetActive(arena.Result!=ArenaMatchResult.None);
         retryButton.gameObject.SetActive(arena.IsServerAuthority);
         bossText.text = $"镜庭守望者   {Mathf.CeilToInt(arena.BossHealth)}";
+        clearText.text=Time.unscaledTime<arena.ClearNoticeUntil?arena.ClearNotice:"";
         mechanicsText.text=arena.SpellName+"   /   "+(arena.ExposedSeconds>0?$"破绽 {arena.ExposedSeconds:0.0} 秒":$"破甲 {arena.BreakGauge:0}%")+
             (string.IsNullOrEmpty(arena.LastReaction)?"":"   ·   "+arena.LastReaction);
         bossFill.anchorMax = new Vector2(arena.BossMaxHealth>0 ? Mathf.Clamp01(arena.BossHealth/arena.BossMaxHealth):0,1);

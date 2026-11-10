@@ -19,9 +19,9 @@ MonoBehaviour:
   iconKey: droplets
   effect: {fileID: 11400000, guid: b0520000000000000000000000000516, type: 2}
   category: 0
-  rarity: 1
+  rarity: 0
   stackPolicy: 1
   supportedModes: 7
-  acquisitionSources: 3
+  acquisitionSources: 27
   temporaryDuration: 30
   modeEffects: []

@@ -65,6 +65,20 @@ public class ItemManager : NetworkBehaviour
     public int SyncedItemCount => acquiredItemIds.Count;
     public float ArenaMoveSpeedMultiplier=>GetArenaStats().MoveSpeed;
     private ArenaBuildStats cachedStats;
+    private RunnerBuildStats cachedRunnerStats;
+    private float runnerHealingRemainder;
+    public RunnerBuildStats GetRunnerStats()
+    {
+        if(cachedRunnerStats!=null)return cachedRunnerStats;
+        var stats=new RunnerBuildStats();
+        foreach(var item in items)item.Runtime.ModifyRunnerStats(stats);
+        stats.StrafeSpeed=Mathf.Clamp(stats.StrafeSpeed,.7f,1.6f);
+        stats.DamageReduction=Mathf.Clamp(stats.DamageReduction,0,.6f);
+        stats.PickupRadius=Mathf.Clamp(stats.PickupRadius,1.1f,3.5f);
+        stats.ExtraInvulnerability=Mathf.Clamp(stats.ExtraInvulnerability,0,.5f);
+        stats.MaxHealthBonus=Mathf.Clamp(stats.MaxHealthBonus,0,150);
+        cachedRunnerStats=stats;return stats;
+    }
     public ArenaBuildStats GetArenaStats()
     {
         if(cachedStats!=null)return cachedStats;
@@ -103,6 +117,7 @@ public class ItemManager : NetworkBehaviour
         items.Clear();
         activeItems.Clear();
         cachedStats=null;
+        cachedRunnerStats=null;
         activeReadyAt.Clear();
     }
 
@@ -132,6 +147,15 @@ public class ItemManager : NetworkBehaviour
             return;
 
         float deltaTime = Time.deltaTime;
+        if(CurrentMode==GameplayMode.Runner)
+        {
+            runnerHealingRemainder+=Mathf.Max(0,GetRunnerStats().Regeneration)*deltaTime;
+            if(runnerHealingRemainder>=1)
+            {
+                int amount=Mathf.FloorToInt(runnerHealingRemainder);runnerHealingRemainder-=amount;
+                GetComponent<CrowdManager>()?.HealHealth(amount);
+            }
+        }
         for (int i = items.Count - 1; i >= 0; i--)
         {
             OwnedItem entry = items[i];
@@ -278,6 +302,7 @@ public class ItemManager : NetworkBehaviour
     {
         runtime.OnAcquire(this);
         cachedStats=null;
+        cachedRunnerStats=null;
         items.Add(new OwnedItem
         {
             Definition = definition,
@@ -321,7 +346,10 @@ public class ItemManager : NetworkBehaviour
         float duration = upgrade.Category == ItemCategory.Temporary
             ? Mathf.Max(0.01f, temporaryRemainingOverride ?? upgrade.TemporaryDuration)
             : 0f;
+        CrowdManager health=GetComponent<CrowdManager>();
+        int oldMaximum=health!=null?health.MaxHealth:0;
         RegisterRuntime(upgrade, runtime, duration, true);
+        if(health!=null&&health.MaxHealth>oldMaximum)health.HealHealth(health.MaxHealth-oldMaximum);
         return true;
     }
 
@@ -339,6 +367,7 @@ public class ItemManager : NetworkBehaviour
     private void RemoveAt(int index)
     {
         cachedStats=null;
+        cachedRunnerStats=null;
         OwnedItem entry = items[index];
         entry.Runtime.OnRemove();
         activeItems.Remove(entry.Runtime);
@@ -380,6 +409,7 @@ public class ItemManager : NetworkBehaviour
     private void HandleModeChanged(GameplayMode previous, GameplayMode current)
     {
         cachedStats=null;
+        cachedRunnerStats=null;
         for (int i = 0; i < items.Count; i++)
             items[i].Runtime.OnModeChanged(previous, current);
 
@@ -400,6 +430,7 @@ public class ItemManager : NetworkBehaviour
     private void HandleItemListChanged(NetworkListEvent<int> changeEvent)
     {
         cachedStats=null;
+        cachedRunnerStats=null;
         if(!IsServer) RebuildMirroredInventory();
         InventoryChanged?.Invoke();
     }

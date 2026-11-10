@@ -43,5 +43,6 @@ public abstract class ItemRuntime
         return false;
     }
     public virtual void ModifyArenaStats(ArenaBuildStats stats) { }
+    public virtual void ModifyRunnerStats(RunnerBuildStats stats) { }
 
 }

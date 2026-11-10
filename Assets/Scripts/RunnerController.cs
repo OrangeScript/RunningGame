@@ -5,6 +5,8 @@ using UnityEngine.InputSystem;
 [RequireComponent(typeof(CharacterController))]
 public class RunnerController : NetworkBehaviour
 {
+    public static readonly System.Collections.Generic.HashSet<RunnerController> ActiveRunners =
+        new System.Collections.Generic.HashSet<RunnerController>();
     [SerializeField] private float forwardSpeed=4f;
     [SerializeField] private float horizontalSpeed=7f;
     [SerializeField] private float xLimit=RunSectionPresentation.MovementHalfWidth;
@@ -15,6 +17,7 @@ public class RunnerController : NetworkBehaviour
     private CharacterController controller;
     private PlayerInput playerInput;
     private CrowdManager crowd;
+    private ItemManager items;
     private ArenaRemoteBuffer remote;
     private readonly MotionPrediction prediction=new MotionPrediction();
     private readonly MovementInputBudget budget=new MovementInputBudget();
@@ -28,16 +31,22 @@ public class RunnerController : NetworkBehaviour
     public int LaneId=>laneId.Value;
     public float LaneCenterX=>laneCenterX.Value;
     public float MovementHalfWidth=>laneHalfWidth.Value;
+    public float ForwardSpeed=>forwardSpeed;
+    public bool IsAdvancing=>Phase==PlayerRunPhase.Running||Phase==PlayerRunPhase.Combat;
+    public Vector3 LatestAuthorityPosition { get; private set; }
     private bool CanMove=>Phase==PlayerRunPhase.Running || Phase==PlayerRunPhase.Combat;
     private void Awake()
     {
         controller=GetComponent<CharacterController>(); playerInput=GetComponent<PlayerInput>(); crowd=GetComponent<CrowdManager>();
+        items=GetComponent<ItemManager>();
         remote=gameObject.AddComponent<ArenaRemoteBuffer>();
         if(playerInput!=null) playerInput.enabled=false;
         controller.enabled=false;
     }
     public override void OnNetworkSpawn()
     {
+        ActiveRunners.Add(this);
+        budget.Reset(Time.unscaledTimeAsDouble);
         if(playerInput!=null) playerInput.enabled=IsOwner;
         controller.enabled=IsServer||IsOwner; remote.SetPlaybackEnabled(!IsServer&&!IsOwner);
         playerPhase.OnValueChanged+=HandlePhase;
@@ -49,6 +58,7 @@ public class RunnerController : NetworkBehaviour
     }
     public override void OnNetworkDespawn()
     {
+        ActiveRunners.Remove(this);
         if(playerInput!=null) playerInput.enabled=false;
         if(crowd!=null) crowd.PopulationDepleted-=HandleDepleted;
         playerPhase.OnValueChanged-=HandlePhase; prediction.Clear();
@@ -61,7 +71,10 @@ public class RunnerController : NetworkBehaviour
         if(!IsSpawned) return;
         if(IsOwner && CanMove)
         {
-            accumulator=Mathf.Min(.1f,accumulator+Time.deltaTime);
+            // Road construction and a pickup's first draw can hitch a frame.
+            // Catch up a quarter second instead of permanently losing travel
+            // time at the old six-command limit.
+            accumulator=Mathf.Min(.25f,accumulator+Time.deltaTime);
             while(accumulator>=MotionPrediction.Step)
             {
                 accumulator-=MotionPrediction.Step;
@@ -100,8 +113,9 @@ public class RunnerController : NetworkBehaviour
     {
         if(!CanMove||!controller.enabled||!ArenaProtocol.TryDecode(frame,out Vector2 move,out _,out _)) return;
         Vector3 before=transform.position;
-        float x=Mathf.Clamp(before.x+move.x*horizontalSpeed*MotionPrediction.Step,LaneCenterX-MovementHalfWidth,LaneCenterX+MovementHalfWidth);
-        controller.Move(new Vector3(x-before.x,-2*MotionPrediction.Step,Phase==PlayerRunPhase.Running?forwardSpeed*MotionPrediction.Step:0));
+        float strafe=items!=null?items.GetRunnerStats().StrafeSpeed:1;
+        float x=Mathf.Clamp(before.x+move.x*horizontalSpeed*strafe*MotionPrediction.Step,LaneCenterX-MovementHalfWidth,LaneCenterX+MovementHalfWidth);
+        controller.Move(new Vector3(x-before.x,-2*MotionPrediction.Step,forwardSpeed*MotionPrediction.Step));
         velocity=(transform.position-before)/MotionPrediction.Step;
     }
     [ClientRpc(Delivery=RpcDelivery.Unreliable)]
@@ -109,6 +123,7 @@ public class RunnerController : NetworkBehaviour
     {
         if(IsServer||snapshot.ServerTime<=lastSnapshot) return;
         lastSnapshot=snapshot.ServerTime;
+        LatestAuthorityPosition=snapshot.Position;
         if(!IsOwner) { remote.Push(snapshot); return; }
         Vector3 before=transform.position;
         if(receivedRevision!=serverRevision) { receivedRevision=serverRevision; prediction.Clear(); visualCorrection=Vector3.zero; }

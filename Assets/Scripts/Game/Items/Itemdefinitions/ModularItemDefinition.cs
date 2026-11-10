@@ -12,6 +12,9 @@ public sealed class ModularItemDefinition : ItemEffectDefiniton
     public ElementType element;
     public ElementType secondaryElement;
     public float movementMultiplier=1,damageReduction,regeneration,invulnerability,grazeMultiplier=1;
+    public int maxHealthBonus,healthOnKill;
+    public float pickupRadiusBonus;
+    public float homingTurnRate,homingMaxAngle=12,homingAcquireRange=24,obstacleDamageMultiplier=1;
     public ItemActiveAbility activeAbility;
     public float cooldown=18;
     public override ItemRuntime CreateRuntime()=>new ModularItemRuntime(this);
@@ -38,6 +41,20 @@ public sealed class ModularItemRuntime : ItemRuntime
         spec.pierce+=definition.pierce;spec.bounce+=definition.bounce;
         spec.AddElement(definition.element);
         spec.AddElement(definition.secondaryElement);
+        spec.homingTurnRate=Mathf.Max(spec.homingTurnRate,definition.homingTurnRate);
+        if(definition.homingTurnRate>0)
+        {
+            spec.homingMaxAngle=definition.homingMaxAngle;
+            spec.homingAcquireRange=Mathf.Max(spec.homingAcquireRange,definition.homingAcquireRange);
+        }
+        spec.obstacleDamageMultiplier*=definition.obstacleDamageMultiplier;
+        if(spec.gameplayMode==GameplayMode.BossArena)
+        {
+            // The same guidance/drilling hardware becomes precision and
+            // armor penetration in the single-boss arena.
+            if(definition.homingTurnRate>0){spec.speed*=1.12f;spec.pierce++;}
+            if(definition.obstacleDamageMultiplier>1)spec.pierce+=Mathf.FloorToInt(definition.obstacleDamageMultiplier-1);
+        }
     }
     public override void ModifyArenaStats(ArenaBuildStats stats)
     {
@@ -46,6 +63,18 @@ public sealed class ModularItemRuntime : ItemRuntime
         stats.Regeneration+=definition.regeneration;
         stats.ExtraInvulnerability+=definition.invulnerability;
         stats.GrazeMultiplier*=definition.grazeMultiplier;
+        stats.GrazeMultiplier*=1+definition.pickupRadiusBonus*.25f;
+        stats.Regeneration+=definition.healthOnKill*.02f;
+    }
+    public override void ModifyRunnerStats(RunnerBuildStats stats)
+    {
+        stats.StrafeSpeed*=definition.movementMultiplier;
+        stats.DamageReduction+=definition.damageReduction;
+        stats.MaxHealthBonus+=definition.maxHealthBonus;
+        stats.Regeneration+=definition.regeneration*10;
+        stats.HealthOnKill+=definition.healthOnKill;
+        stats.PickupRadius+=definition.pickupRadiusBonus;
+        stats.ExtraInvulnerability+=definition.invulnerability;
     }
     public override bool TryActivate()
     {
@@ -66,7 +95,7 @@ public sealed class ModularItemRuntime : ItemRuntime
                     boss.transform.position,Vector3.forward,definition.element));
                 if(definition.activeAbility==ItemActiveAbility.Bomb)
                 {
-                    Object.FindFirstObjectByType<ArenaBootstrap>()?.ClearBossBullets();
+                    Object.FindFirstObjectByType<ArenaBootstrap>()?.ClearBossBullets(player.transform.position,100,ArenaBulletClearReason.Bomb);
                     boss?.PausePattern(.8f);
                 }
             }

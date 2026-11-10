@@ -39,7 +39,8 @@ public enum ItemAcquisitionSource : byte
     TreasureChest = 1,
     Event = 2,
     InLevelDrop = 3,
-    Debug = 4
+    Debug = 4,
+    RoadGate = 5
 }
 
 [Flags]
@@ -49,7 +50,9 @@ public enum ItemAcquisitionMask : byte
     LevelReward = 1 << 0,
     TreasureChest = 1 << 1,
     Event = 1 << 2,
-    AllRewards = LevelReward | TreasureChest | Event
+    InLevelDrop = 1 << 3,
+    RoadGate = 1 << 4,
+    AllRewards = LevelReward | TreasureChest | Event | InLevelDrop | RoadGate
 }
 
 public enum ItemStackPolicy : byte
@@ -59,8 +62,8 @@ public enum ItemStackPolicy : byte
 }
 
 /// <summary>
-/// Central acquisition rules. Permanent items never drop directly inside a
-/// lane, and Epic/Legendary items are reserved for explicit treasure rewards.
+/// Explicit sources remain authoritative. Road gates grant ordinary passives;
+/// sentry/elite drops may grant the rarity rolled by the loot director.
 /// </summary>
 public static class ItemAcquisitionPolicy
 {
@@ -72,10 +75,10 @@ public static class ItemAcquisitionPolicy
         if (source == ItemAcquisitionSource.Debug)
             return true;
 
-        if (source == ItemAcquisitionSource.InLevelDrop)
-            return false;
+        bool road=source==ItemAcquisitionSource.InLevelDrop||source==ItemAcquisitionSource.RoadGate;
+        if(road&&(item.Category!=ItemCategory.Passive||!item.SupportsMode(GameplayMode.Runner)))return false;
 
-        if (item.Rarity >= ItemRarity.Epic && source != ItemAcquisitionSource.TreasureChest)
+        if (item.Rarity >= ItemRarity.Epic && source != ItemAcquisitionSource.TreasureChest&&source!=ItemAcquisitionSource.InLevelDrop)
             return false;
 
         return item.IsSourceAllowed(source);

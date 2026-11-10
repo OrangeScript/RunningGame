@@ -53,7 +53,10 @@ public class PlayerStats : MonoBehaviour
 
         return new AttackPlan
         {
-            damageMultiplier = Mathf.Clamp(population / 20f, 0.1f, 50f),
+            // Preserve gate growth without letting two early multipliers
+            // erase every sentry. Below the baseline, penalties stay linear.
+            damageMultiplier = population<=20?Mathf.Clamp(population/20f,.1f,1):
+                Mathf.Min(8,Mathf.Sqrt(population/20f)),
 
             attackInterval =
                 AttackInterval,

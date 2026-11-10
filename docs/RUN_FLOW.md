@@ -40,7 +40,7 @@
 
 正式包不从测试场景启动。
 
-首领符卡、元素配队、44 件道具、图标来源及联机预测的详细说明见 [BOSS_DESIGN.md](BOSS_DESIGN.md)。
+普通道路最新流程、54 件道具、驻守敌人、沿途拾取与障碍机制见 [RUNNING_CONTINUOUS.md](RUNNING_CONTINUOUS.md)；首领符卡与联机预测见 [BOSS_DESIGN.md](BOSS_DESIGN.md)。
 
 ## 2. 一局游戏的正式闭环
 
@@ -58,7 +58,7 @@ Bootstrap
        |-- Reward：直接获得普通永久构筑三选一
        |-- Treasure：高品质宝藏三选一
        `-- Boss：保存构筑并切换 Arena
-  -> 道路玩家分别跑酷、过门、战斗，进度互不冻结
+  -> 道路玩家持续前进、过门、前向射击、拾取击杀掉落，进度互不冻结
   -> 全部存活玩家到达终点
   -> 每位玩家独立三选一
   -> 返回地图，继续下一轮公开投票
@@ -124,7 +124,7 @@ Bootstrap
 道路玩家状态是逐玩家维护的：
 
 - `Running`：自动前进，可左右躲避。
-- `Combat`：只停止自己的前进，其他道路照常运行。
+- `Combat`：兼容旧接口的战斗标记，仍然前进；正式战区不再切换停车状态。
 - `RewardChoice`：等待自己的三选一。
 - `WaitingAtExit`：已完成，等待队友。
 - `Eliminated`：本节点不再计入待完成集合。
@@ -149,13 +149,13 @@ Gate、Enemy、Encounter、终点触发器都带 lane 约束，防止一条路�
 
 门的运算与数值由 section seed 和难度决定，作用于火力而非角色数量。成对的门并排放置，每位玩家只能触发该组中的一个选项。火力最低为 1；单发伤害随火力提高，散射/多重射击由道具提供。生命独立计算，敌人和障碍扣生命，负向门不会直接杀死角色。进入 Arena 时保留已积累的火力。
 
-每个道路 section 还会生成 1～若干个确定性随机障碍：
+每个道路 section 会生成确定性随机障碍：
 
-- 静态阻挡块：需要横向选择空隙。
-- 横向移动块：按服务器时间同步运动。
-- 旋转杆：触碰后扣除生命。
+- 木箱、加固掩体、爆桶：可被射击破坏，完整时挡住双方射线；爆桶可同路连锁。
+- 横移挡板、旋臂：按服务器时间同步运动，改变射击与通行路线。
+- 周期激光、伸缩地刺：预告危险窗口，留出稳定侧方逃生带。
 
-服务器创建碰撞和伤害判定；客户端根据同一 seed 构建表现。障碍不是永久道具掉落，符合“关卡内只能获得数值增幅或临时规则”的边界。
+服务器创建伤害和破坏判定，客户端按 seed 构建并接收可靠破坏状态。所有障碍对角色都使用触发器，不会把自动前进角色卡死；每段保留连续可绕行的空间。
 
 核心实现：
 
@@ -165,23 +165,23 @@ Gate、Enemy、Encounter、终点触发器都带 lane 约束，防止一条路�
 
 ## 6. Running 战斗与敌人 AI
 
-玩家进入 Combat section 后，该玩家停止前进并由服务器生成敌人。单角色从自己的发射点自动搜索和射击，门决定火力强度，道具修改攻击模式；敌人清空后只恢复该玩家的前进状态。
+敌人在玩家进入视野前已生成，固定驻守原地。玩家始终向前跑，默认弹丸只沿世界 +Z 发射，普通敌弹沿 -Z 迎面射来；只有实际弹道相交才命中。玩家通过横移对齐、绕障、拾取原地掉落形成构筑。轻追踪需要对应道具，有严格前方锥角和转速限制。
 
 敌人生成使用预算制：
 
-- 难度越高，可消费的出生预算越多。
-- 不同原型有不同预算成本。
-- 出生数量有上限，避免随机结果失控。
-- 位置、原型、数量均由 encounter seed 决定。
+- 难度影响预算，实际每组限制为 2～4 名驻守敌人。
+- 精英路包含特殊驻守者，生命与射击节奏有类型差异。
+- 选点避开障碍整个运动包络，不够安全时宁可少生成。
+- 位置、原型、数量和生命浮动由 encounter seed 决定。
 
 当前 AI 原型：
 
-- `Chaser`：接近后近战攻击。
-- `Strafer`：保持距离并横向移动。
-- `Charger`：预警后直线冲刺。
-- `Ranged`：维持射程并发动远程伤害。
+- `Chaser`：普通驻守卫兵，严格向前直射。
+- `Strafer`：驻守扇射手，三路迎面射击。
+- `Charger`：驻守狙击手，较长预告后沿有限角度锁定方向开火。
+- `Ranged`：驻守连射手，三发短连射。
 
-每个敌人运行 `Acquire -> Approach -> Telegraph -> Attack -> Recover` 状态机，定期重新选择同 lane 的合法目标；预警和恢复窗口给玩家留下反应空间。
+原枚举值保留以兼容 prefab，Approach 只表示准备阶段。敌人只向本 lane 的迎面玩家开火，玩家跑过后停止攻击；漏杀不阻止关卡结束。击杀是真正的击杀事件，退场清理不算击杀，也不生成掉落。
 
 核心实现：
 
@@ -195,7 +195,7 @@ Gate、Enemy、Encounter、终点触发器都带 lane 约束，防止一条路�
 
 | 类型 | 生命周期 | 主要来源 |
 |---|---|---|
-| 被动 `Passive` | 整局保留，可按规则叠加 | 普通节点结算、宝藏 |
+| 被动 `Passive` | 整局保留，可按规则叠加 | 道具门、击杀原地拾取、节点结算、宝藏 |
 | 主动 `Active` | 整局保留，拥有主动键和冷却 | 普通节点结算、宝藏 |
 | 临时 `Temporary` | 限时，时间结束由服务器移除 | `?`、事件 |
 
@@ -203,10 +203,10 @@ Gate、Enemy、Encounter、终点触发器都带 lane 约束，防止一条路�
 
 获取规则由服务器统一校验：
 
-- 道路内不会掉落永久道具。
+- 道具门直接授予图标对应的被动；每个真正击杀在原地留下被动，靠近即获得。来源规则已按本轮新设计更新。
 - Combat / Elite 完成后，每位存活玩家独立获得三选一。
 - `?` 从临时道具池中选择；Reward 直接提供普通永久构筑三选一。
-- Epic / Legendary 只允许 Treasure Chest 获取。
+- 普通道具门最高 Rare；精英特殊敌人可掉落 Epic，宝藏继续提供高品质选择。
 - 当前 Treasure 池至少包含三件 Epic，可稳定形成真正的三选一；棱镜齐射和虚空重炮在 Running/Arena 使用同一数值定义、不同攻击表现。
 - 客户端只能选择服务器实际发给自己的候选 ID。
 - 候选不足三张时安全降级，不会卡死结算。
@@ -215,7 +215,7 @@ Gate、Enemy、Encounter、终点触发器都带 lane 约束，防止一条路�
 
 `UpgradeData` 保留稳定 ID、分类、品质、图标和构筑身份；效果通过 `GameplayMode` 解释：
 
-- `Runner`：可作用于人口对应的齐射数量、弹体、元素效果等。
+- `Runner`：影响火力、前向弹道、有限追踪、穿透、防御、恢复与拾取，不生成角色方阵。
 - `BossArena`：玩家始终只有一个 2D 角色，人数/齐射类效果映射成多重射击、散射、攻速或伤害，而不是复制角色。
 - `FirstPerson`：已预留同一个模式适配接口；当前版本未实现第一人称 Pawn。
 
@@ -283,7 +283,7 @@ Boss 弹幕包含：
 
 ## 10. 自动验收
 
-项目提供四个 Editor 命令行验收入口：
+主要 Editor 命令行验收入口：
 
 - `RunningProjectValidator.ValidateCommandLine`
   - 检查 Build Settings、场景引用、NetworkObject、section prefab hash。
@@ -294,9 +294,13 @@ Boss 弹幕包含：
 - `RunningPlayModeSmoke.Run`
   - 从 Bootstrap 真正启动 Host。
   - 进入 RunLoop、投票 Combat/Elite。
-  - 验证随机道路、门/障碍、敌人生成和独立战斗 phase。
-  - 不注入伤害，等待正式 AutoCombat 自然消灭整组敌人并恢复 Running。
-  - 到达终点、完成三选一并返回下一轮地图投票。
+  - 转到 `RunningContinuousPlayModeSmoke.Run`，通过真实碰撞探针检查打空 / 命中 / 追踪 / 穿透 / 掩体。
+  - 验证门图标奖励与原地拾取、防御、自动前进不中断。
+  - 自然跑完整条道路，完成三选一并返回地图，再检查失败和新局重开。
+- `RunningContinuousValidator.ValidateCommandLine`
+  - 汇总新武器、敌人、障碍和掉落规则、54 件目录与模式适配。
+- `RunningContinuousNetworkSmoke.BeginHost` / `BeginClient`
+  - 双进程模拟延迟，覆盖实际投票、地图隐藏、前射、敌弹、拾取、构筑与破坏同步。
 - `RunningMultiplayerLogicValidator.ValidateCommandLine`
   - 覆盖公开票、改票、平票、超时、非法票和断线移票/即时解析。
 - `RunningArenaPlayModeSmoke.Begin`
@@ -308,7 +312,9 @@ Boss 弹幕包含：
 
 ```text
 RUNNING_VALIDATION_OK
-RUNNING_PLAYMODE_SMOKE_OK
+RUNNING_CONTINUOUS_VALIDATION_PASS
+RUNNING_CONTINUOUS_PLAYMODE_PASS
+RUNNING_CONTINUOUS_NETWORK_CLIENT_PASS
 RUNNING_MULTIPLAYER_LOGIC_OK
 RUNNING_ARENA_SMOKE_PASS
 ```

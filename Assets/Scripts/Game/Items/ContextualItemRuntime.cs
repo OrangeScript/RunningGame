@@ -82,6 +82,7 @@ public sealed class ContextualItemRuntime : ItemRuntime
         return Current != null && Current.TryActivate();
     }
     public override void ModifyArenaStats(ArenaBuildStats stats) => Current?.ModifyArenaStats(stats);
+    public override void ModifyRunnerStats(RunnerBuildStats stats) => Current?.ModifyRunnerStats(stats);
 
     private void AddUnique(ItemRuntime runtime)
     {

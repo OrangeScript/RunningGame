@@ -11,9 +11,10 @@ public static class RunningBossValidator
         RunningProjectValidator.ValidateCommandLine();
         UnityEditor.SceneManagement.EditorSceneManager.NewScene(UnityEditor.SceneManagement.NewSceneSetup.EmptyScene);
         ValidateMotion();
+        ValidateBossMotionAndClear();
         ValidateElements();
         ValidateInventory();
-        Debug.Log("RUNNING_BOSS_VALIDATION_PASS movement=60Hz camera=deadzone reactions=solo+team catalog=44 icons=offline rewards=unique+recent");
+        Debug.Log("RUNNING_BOSS_VALIDATION_PASS movement=60Hz camera=deadzone reactions=solo+team catalog=54 icons=offline rewards=unique+recent");
     }
 
     private static void ValidateMotion()
@@ -63,10 +64,50 @@ public static class RunningBossValidator
         Require(freeze.Apply(ElementType.None,1,20)>0,"Physical builds cannot damage the boss.");
     }
 
+    private static void ValidateBossMotionAndClear()
+    {
+        for(int stage=1;stage<=3;stage++)
+        {
+            var motion=new ArenaBossMotion(new Vector3(0,1,7));motion.SetStage(stage);
+            float min=0,max=0;
+            for(int i=0;i<1800;i++)
+            {
+                Vector3 before=motion.Position;
+                var position=motion.Tick(i/60f,1/60f,false);
+                Require(Mathf.Abs(position.x)<=7.5f&&position.z>=4.5f&&position.z<=8.5f,"Boss left its upper-field movement area.");
+                Require(Vector3.Distance(before,position)<3.3f/60,"Boss movement teleported or exceeds its speed limit.");
+                min=Mathf.Min(min,position.x);max=Mathf.Max(max,position.x);
+            }
+            Require(max-min>8,$"Card {stage} does not move across the field.");
+            Vector3 held=motion.Position;motion.HoldUntil(40);
+            Require(motion.Tick(31,1,false)==held,"Boss drifted during aimed-shot/exposure hold.");
+        }
+        var normal=new ArenaBossMotion(new Vector3(0,1,7));var slowed=new ArenaBossMotion(new Vector3(0,1,7));
+        for(int i=0;i<120;i++){normal.Tick(i/60f,1/60f,false);slowed.Tick(i/60f,1/60f,true);}
+        Require(slowed.Position.x<normal.Position.x*.7f,"Freeze does not slow boss movement.");
+        ArenaBossProjectile inside=null,outside=null;
+        try
+        {
+            inside=ArenaBossProjectile.Spawn(Vector3.zero,Vector3.right,2,60,1,.1f,false,0,0,10);
+            outside=ArenaBossProjectile.Spawn(Vector3.zero,Vector3.right,2,60,1,.1f,false,0,0,10);
+            ArenaBossProjectile.Clear(Vector3.zero,.1f,15);
+            Require(!inside.IsCleared&&!outside.IsCleared,"Local clear used a stale visual/origin position.");
+            ArenaBossProjectile.Clear(Vector3.right*10,.1f,15);
+            Require(inside.IsCleared&&outside.IsCleared&&inside!=null,"Server-time clear did not dissolve bullets before their first Update.");
+            Require(ArenaBossProjectile.EvaluatePosition(Vector3.zero,Vector3.forward,5,.4f,100,100.2)==Vector3.zero,"Warning bullets moved before arming.");
+        }
+        finally
+        {
+            if(inside!=null)UnityEngine.Object.DestroyImmediate(inside.gameObject);
+            if(outside!=null)UnityEngine.Object.DestroyImmediate(outside.gameObject);
+        }
+        Debug.Log("BOSS_MOTION_CLEAR_VALIDATION_PASS cards=3 bounds speed hold freeze clear=server-time+dissolve");
+    }
+
     private static void ValidateInventory()
     {
         var catalog=RuntimeItemCatalog.Default;
-        Require(catalog!=null&&catalog.Items.Count==44,"Expected 44 registered items.");
+        Require(catalog!=null&&catalog.Items.Count==54,"Expected 54 registered items.");
         var ids=new HashSet<int>();var categories=new HashSet<ItemCategory>();var candidates=new List<UpgradeData>();
         foreach(var item in catalog.Items)
         {

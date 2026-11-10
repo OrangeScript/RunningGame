@@ -34,6 +34,7 @@ public class GameManager : NetworkBehaviour
         mapCoordinator = runMapFlow.Coordinator;
 
         BuildUpgradeLookup();
+        RunLootDirector.Ensure(gameObject);
         if (Application.isPlaying)
         {
             RenderSettings.fog = true;
@@ -91,6 +92,7 @@ public class GameManager : NetworkBehaviour
         = new NetworkVariable<int>(0,NetworkVariableReadPermission.Everyone,
                                 NetworkVariableWritePermission.Server);
     public RunState state => runState.Value;
+    public bool IsEliteRoad=>activeMapNode!=null&&activeMapNode.Type==RunMapNodeType.Elite;
 
     public event Action<RunState> StateChanged;
     private readonly Dictionary<ulong, CombatEncounter> activeEncounterByClient =
@@ -306,12 +308,11 @@ public class GameManager : NetworkBehaviour
             return false;
 
         ulong clientId = runner.OwnerClientId;
-        if (activeEncounterByClient.ContainsKey(clientId))
-            return false;
-
-        activeEncounterByClient.Add(clientId, encounter);
+        // Battle zones are stretches of the running road, never arenas that
+        // stop the player. A later zone can become active before an old one
+        // has cleaned up its remaining sentries.
+        activeEncounterByClient[clientId] = encounter;
         runnerByClient[clientId] = runner;
-        runner.EnterCombatServer();
         return true;
     }
 
@@ -324,9 +325,7 @@ public class GameManager : NetworkBehaviour
         if (!activeEncounterByClient.TryGetValue(clientId, out CombatEncounter active) || active != encounter)
             return;
 
-        encounter.FinishEncounter();
         activeEncounterByClient.Remove(clientId);
-        runner.ResumeRunningServer();
     }
 
     private void BeginUpgradeSelection(
@@ -541,6 +540,8 @@ public class GameManager : NetworkBehaviour
 
         if (!hasSurvivingRunner)
         {
+            RunnerEnemyProjectileSystem.Instance?.ClearServer();
+            Projectile.ClearAll();GetComponent<RunLootDirector>()?.ClearRoadServer();
             SetState(RunState.GameOver);
             return;
         }
@@ -590,11 +591,15 @@ public class GameManager : NetworkBehaviour
 
     private void StartRoadNode(RunMapNodeSnapshot node)
     {
+        activeEncounterByClient.Clear();
+        RunnerEnemyProjectileSystem.Instance?.ClearServer();
+        foreach(var runner in runnerByClient.Values)if(runner!=null)Projectile.ClearLane(runner.LaneId);
+        GetComponent<RunLootDirector>()?.ClearRoadServer();
         finishedLaneClients.Clear();
         ClearLaneExitTriggers();
         int laneCount = Mathf.Clamp(runnerByClient.Count, 1, 4);
         sectionManager.SetNodeDifficulty(
-            node.Type == RunMapNodeType.Elite ? 1.7f : 1f);
+            (node.Type == RunMapNodeType.Elite ? 1.7f : 1f)*(1+node.Layer*.14f));
 
         if (!sectionManager.TryBuildFiniteRun(node.ContentSeed, laneCount) ||
             sectionManager.CurrentPlan == null)
@@ -693,6 +698,10 @@ public class GameManager : NetworkBehaviour
             return false;
 
         ClearLaneExitTriggers();
+        activeEncounterByClient.Clear();
+        RunnerEnemyProjectileSystem.Instance?.ClearServer();
+        foreach(var runner in runnerByClient.Values)if(runner!=null)Projectile.ClearLane(runner.LaneId);
+        GetComponent<RunLootDirector>()?.ClearRoadServer();
         sectionManager.ClearFiniteRun();
         BeginNodeRewardSelection();
         return true;

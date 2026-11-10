@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   networkId: 1312
   upgradeName: "轻羽靴"
-  description: "首领战移动速度提高 18%。"
+  description: "跑酷横移速度提高 18%；首领战移动速度也提高 18%。"
   icon: {fileID: 0}
   iconKey: footprints
   effect: {fileID: 11400000, guid: b0520000000000000000000000000520, type: 2}
@@ -22,6 +22,6 @@ MonoBehaviour:
   rarity: 1
   stackPolicy: 1
   supportedModes: 7
-  acquisitionSources: 3
+  acquisitionSources: 27
   temporaryDuration: 30
   modeEffects: []

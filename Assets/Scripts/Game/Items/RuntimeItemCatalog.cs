@@ -7,6 +7,10 @@ public sealed class RuntimeItemCatalog : ScriptableObject
     [SerializeField] private UpgradeData[] items;
     private Dictionary<int,UpgradeData> lookup;
     private static RuntimeItemCatalog instance;
+    private void OnEnable()=>lookup=null;
+#if UNITY_EDITOR
+    private void OnValidate()=>lookup=null;
+#endif
     public static RuntimeItemCatalog Default=>instance!=null?instance:(instance=Resources.Load<RuntimeItemCatalog>("ItemCatalog"));
     public IReadOnlyList<UpgradeData> Items=>items;
     public UpgradeData Find(int id)

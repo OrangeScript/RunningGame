@@ -68,6 +68,8 @@ public class UpgradeData : ScriptableObject
             ItemAcquisitionSource.LevelReward => ItemAcquisitionMask.LevelReward,
             ItemAcquisitionSource.TreasureChest => ItemAcquisitionMask.TreasureChest,
             ItemAcquisitionSource.Event => ItemAcquisitionMask.Event,
+            ItemAcquisitionSource.InLevelDrop => ItemAcquisitionMask.InLevelDrop,
+            ItemAcquisitionSource.RoadGate => ItemAcquisitionMask.RoadGate,
             ItemAcquisitionSource.Debug => ItemAcquisitionMask.AllRewards,
             _ => ItemAcquisitionMask.None
         };

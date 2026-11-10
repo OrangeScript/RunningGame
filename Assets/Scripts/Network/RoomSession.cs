@@ -254,6 +254,14 @@ public class RoomSession : MonoBehaviour
             phase=RoomPhase.Playing;
     }
 
+    public void RetryRunning()
+    {
+        if(!networkManager.IsServer||phase!=RoomPhase.Playing||selectedMode!=GameMode.Running)return;
+        preservedBuilds.Clear();preservedFirepower.Clear();phase=RoomPhase.Loading;
+        if(networkManager.SceneManager.LoadScene(runningScene,LoadSceneMode.Single)!=SceneEventProgressStatus.Started)
+            phase=RoomPhase.Playing;
+    }
+
     private void OnSceneLoaded(
         string sceneName,
         LoadSceneMode loadMode,
@@ -304,7 +312,7 @@ public class RoomSession : MonoBehaviour
                 return;
             }
 
-            if (soloRunning)
+            if (soloRunning || networkManager.ConnectedClientsIds.Count==1)
                 runManager.StartSinglePlayerRun();
             else
                 runManager.StartMultiplayerRun();

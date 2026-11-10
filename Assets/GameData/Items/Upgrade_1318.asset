@@ -22,6 +22,6 @@ MonoBehaviour:
   rarity: 1
   stackPolicy: 1
   supportedModes: 7
-  acquisitionSources: 3
+  acquisitionSources: 27
   temporaryDuration: 30
   modeEffects: []

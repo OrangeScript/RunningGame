@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e1ecbfdde894a8743bc2de4f4e0369ab, type: 3}
+  m_Name: Upgrade_1341
+  m_EditorClassIdentifier:
+  networkId: 1341
+  upgradeName: "微引导芯片"
+  description: "跑酷弹丸在前方 12° 内轻度追踪；首领战弹速 +12%、穿甲 +1。"
+  icon: {fileID: 0}
+  iconKey: focus
+  effect: {fileID: 11400000, guid: e341000000000000000000000000053d, type: 2}
+  category: 0
+  rarity: 1
+  stackPolicy: 1
+  supportedModes: 7
+  acquisitionSources: 27
+  temporaryDuration: 30
+  modeEffects: []

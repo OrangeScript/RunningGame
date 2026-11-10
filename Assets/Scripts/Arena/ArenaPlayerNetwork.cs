@@ -266,7 +266,7 @@ public class ArenaPlayerNetwork : NetworkBehaviour, IArenaDamageable
     private void RequestGrazeBurstServerRpc()
     {
         if(!IsArenaAlive||grazeCharge.Value<100)return;
-        grazeCharge.Value=0;FindFirstObjectByType<ArenaBootstrap>()?.ClearBossBullets(transform.position,6);
+        grazeCharge.Value=0;FindFirstObjectByType<ArenaBootstrap>()?.ClearBossBullets(transform.position,6,ArenaBulletClearReason.GrazeBurst);
         GrantShieldServer(1,3);
     }
 

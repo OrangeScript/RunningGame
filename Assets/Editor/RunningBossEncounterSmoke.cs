@@ -15,6 +15,8 @@ public static class RunningBossEncounterSmoke
     private static ArenaPlayerNetwork pawn;
     private static ArenaBootstrap arena;
     private static UnityEngine.InputSystem.Keyboard focusKeyboard;
+    private static ArenaBossProjectile hitProbe;
+    private static Vector3 firstBossPosition;
     private static bool previousOptions;
     private static EnterPlayModeOptions previousFlags;
     public static void Run()
@@ -36,6 +38,7 @@ public static class RunningBossEncounterSmoke
             if(phase==0)
             {
                 var room=UnityEngine.Object.FindFirstObjectByType<RoomSession>();if(room==null)return;
+                NetworkManager.Singleton.GetComponent<Unity.Netcode.Transports.UTP.UnityTransport>().SetConnectionData("127.0.0.1",7884,"0.0.0.0");
                 RunningPresentationCapture.Capture("boss-menu");room.StartSoloBoss();phase=1;return;
             }
             if(phase==1)
@@ -55,12 +58,22 @@ public static class RunningBossEncounterSmoke
                 UnityEngine.InputSystem.Users.InputUser.PerformPairingWithDevice(keyboard,input.user);
                 input.actions.devices=new UnityEngine.InputSystem.InputDevice[]{keyboard};
                 UnityEngine.InputSystem.InputSystem.QueueStateEvent(keyboard,new UnityEngine.InputSystem.LowLevel.KeyboardState(UnityEngine.InputSystem.Key.LeftShift));
-                step=Time.timeAsDouble;phase=2;return;
+                firstBossPosition=boss.transform.position;
+                var probePosition=pawn.transform.position+Vector3.back*.2f;probePosition.y=.75f;
+                hitProbe=ArenaBossProjectile.Spawn(probePosition,Vector3.forward,1,20,1,.14f,true,0);
+                step=Time.timeAsDouble;phase=12;return;
             }
             double elapsed=Time.timeAsDouble-step;
+            if(phase==12&&elapsed>.15)
+            {
+                Require(hitProbe!=null&&!hitProbe.IsCleared,"An invulnerable player swallowed the boss bullet.");
+                UnityEngine.Object.DestroyImmediate(hitProbe.gameObject);
+                phase=2;step=Time.timeAsDouble;return;
+            }
             if(phase==2&&elapsed>5)
             {
                 Require(pawn.IsFocused,"Focus keyboard did not reach the player motor.");
+                Require(Vector3.Distance(firstBossPosition,boss.transform.position)>2,"Boss remained stationary during card 1.");
                 Require(ArenaBossProjectile.LiveCount>20,"Card 1 emitted no meaningful ring pattern.");
                 float hp=pawn.CurrentHealth;
                 pawn.ApplyArenaDamage(new ArenaDamageInfo(1,2,0,pawn.transform.position,Vector3.forward));
@@ -104,6 +117,8 @@ public static class RunningBossEncounterSmoke
             if(phase==7&&elapsed>.1)
             {
                 Require(ArenaBossProjectile.LiveCount==0,"Active bomb did not clear the bullets.");
+                Require(UnityEngine.Object.FindObjectsByType<ArenaBossProjectile>(FindObjectsSortMode.None).Length>0,"Cleared bullets disappeared without a dissolve.");
+                Require(arena.ClearNotice.Contains("空白符"),"Intentional clear has no reason displayed.");
                 Require(pawn.GetComponent<ItemManager>().GetActiveCooldown(0)>20,"Active cooldown was not started.");
                 Require(pawn.FireServerAt(boss.transform.position,1000),"Boss damage firing path rejected a live player.");
                 phase=8;step=Time.timeAsDouble;return;
@@ -122,7 +137,7 @@ public static class RunningBossEncounterSmoke
                 if(next==null||next==boss||!next.IsArenaAlive)return;
                 var player=NetworkManager.Singleton.LocalClient?.PlayerObject?.GetComponent<ArenaPlayerNetwork>();
                 Require(player!=null&&player.GetComponent<ItemManager>().itemCount==3&&player.Firepower==40,"Retry lost the build or gate firepower.");
-                Debug.Log("RUNNING_BOSS_ENCOUNTER_PASS solo-entry cards=3 hit+invulnerability reaction-break active-clear victory retry icons");Finish(0);
+                Debug.Log("RUNNING_BOSS_ENCOUNTER_PASS solo-entry cards=3 moving-boss hit-persistence+invulnerability reaction-break active-clear+dissolve victory retry icons");Finish(0);
             }
         }
         catch(Exception e){Debug.LogError("RUNNING_BOSS_ENCOUNTER_FAIL "+e);Finish(1);}

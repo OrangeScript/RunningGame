@@ -1,505 +1,329 @@
 using System;
+using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
-public enum EnemyArchetype : byte
-{
-    Chaser,
-    Strafer,
-    Charger,
-    Ranged
-}
-
-public enum EnemyAIState : byte
-{
-    Acquire,
-    Approach,
-    Telegraph,
-    Attack,
-    Recover
-}
+// Serialized values remain compatible with the existing enemy prefab/catalog.
+// Chaser = sentry; Strafer = fan gunner; Charger = locked sniper; Ranged = burst gunner.
+public enum EnemyArchetype : byte { Chaser, Strafer, Charger, Ranged }
+public enum EnemyAIState : byte { Acquire, Approach, Telegraph, Attack, Recover }
 
 /// <summary>
-/// Server-authoritative enemy state machine. A single prefab can be configured
-/// into four readable behaviours by CombatEncounter's seeded spawn budget.
+/// A stationary lane defender. Target acquisition selects when to shoot, never
+/// where an ordinary bullet goes. Only the sniper may lock a limited aim angle.
 /// </summary>
 public class Enemy : NetworkBehaviour
 {
     [Header("Health")]
-    [SerializeField, Min(1f)] private float maxHealth = 8f;
-
-    [Header("Movement")]
-    [SerializeField, Min(0f)] private float moveSpeed = 2.5f;
-    [SerializeField, Min(0.1f)] private float attackDistance = 1.5f;
-    [SerializeField, Min(0.1f)] private float preferredRangedDistance = 6f;
-    [SerializeField, Min(0.1f)] private float chargeTriggerDistance = 8f;
-    [SerializeField, Min(0.1f)] private float chargeSpeed = 9f;
-
+    [SerializeField, Min(1)] private float maxHealth = 8;
     [Header("Attack")]
     [SerializeField, Min(1)] private int populationDamage = 1;
-    [SerializeField, Min(0.1f)] private float attackInterval = 0.8f;
-    [SerializeField, Min(0.05f)] private float telegraphDuration = 0.45f;
-    [SerializeField, Min(0.05f)] private float recoverDuration = 0.45f;
-    [SerializeField, Min(0.05f)] private float chargeDuration = 0.75f;
-
-    [Header("Target")]
+    [SerializeField, Min(.1f)] private float attackInterval = .8f;
+    [SerializeField, Min(.65f)] private float telegraphDuration = .7f;
+    [SerializeField, Min(.1f)] private float recoverDuration = .45f;
+    [Header("Target / Presentation")]
     [SerializeField] private Transform aimPoint;
     [SerializeField] private Transform visualRoot;
     [SerializeField] private Animator visualAnimator;
 
     private readonly NetworkVariable<float> currentHealth = new NetworkVariable<float>();
+    private readonly NetworkVariable<float> replicatedMaxHealth = new NetworkVariable<float>();
     private readonly NetworkVariable<bool> dead = new NetworkVariable<bool>();
     private readonly NetworkVariable<byte> replicatedArchetype = new NetworkVariable<byte>();
     private readonly NetworkVariable<byte> replicatedState = new NetworkVariable<byte>();
+    private readonly NetworkVariable<int> replicatedLane = new NetworkVariable<int>(-1);
+    private readonly NetworkVariable<Vector3> lockedDirection = new NetworkVariable<Vector3>(Vector3.back);
+    private readonly NetworkVariable<double> warningEndsAt = new NetworkVariable<double>();
 
-    private Transform player;
-    private CrowdManager crowd;
-    private RunnerController targetRunner;
+    private static readonly HashSet<Enemy> activeEnemies = new HashSet<Enemy>();
+    public static IReadOnlyCollection<Enemy> ActiveEnemies => activeEnemies;
+    public static event Action<Enemy> ServerSpawned;
+    public event Action<float, ElementType> Damaged;
+    public event Action<Enemy> Died;
+
     private StatusController statusController;
+    private RunnerController targetRunner;
     private EnemyArchetype archetype;
-    private EnemyAIState aiState = EnemyAIState.Acquire;
+    private EnemyAIState aiState;
     private int laneId = -1;
-    private float difficulty = 1f;
+    private int contentSeed;
+    private float difficulty = 1;
     private float nextAttackTime;
     private float stateEndsAt;
     private float nextTargetRefresh;
-    private float strafeSign = 1f;
-    private Vector3 chargeDirection;
-    private bool chargeHit;
     private bool difficultyApplied;
     private Renderer[] visualRenderers;
     private MaterialPropertyBlock visualProperties;
+    private RunnerEnemyTelegraph attackTelegraph;
     private EnemyArchetype lastVisualArchetype = (EnemyArchetype)byte.MaxValue;
     private EnemyAIState lastVisualState = (EnemyAIState)byte.MaxValue;
 
     public bool IsDead => dead.Value;
+    public bool IsFrozen => statusController != null && statusController.IsFrozen;
     public float CurrentHealth => currentHealth.Value;
-    public int LaneId => laneId;
-    public EnemyArchetype Archetype => IsSpawned
-        ? (EnemyArchetype)replicatedArchetype.Value
-        : archetype;
-    public EnemyAIState State => IsSpawned
-        ? (EnemyAIState)replicatedState.Value
-        : aiState;
-
-    public event Action<float, ElementType> Damaged;
-    public event Action<Enemy> Died;
-
-    public Vector3 AimPosition => aimPoint != null
-        ? aimPoint.position
-        : transform.position + Vector3.up * 0.8f;
+    public float MaxHealth => IsSpawned&&replicatedMaxHealth.Value>0?replicatedMaxHealth.Value:maxHealth;
+    public int LaneId => IsSpawned ? replicatedLane.Value : laneId;
+    public float Difficulty => difficulty;
+    public int ContentSeed => contentSeed;
+    public EnemyArchetype Archetype => IsSpawned ? (EnemyArchetype)replicatedArchetype.Value : archetype;
+    public EnemyAIState State => IsSpawned ? (EnemyAIState)replicatedState.Value : aiState;
+    public Vector3 AimPosition => aimPoint != null ? aimPoint.position : transform.position + Vector3.up * .85f;
+    public Vector3 MuzzlePosition => transform.position + Vector3.up * .9f + Vector3.back * .7f;
+    public string ArchetypeLabel => Archetype switch
+    {
+        EnemyArchetype.Strafer => "扇射手", EnemyArchetype.Charger => "狙击手",
+        EnemyArchetype.Ranged => "连射手", _ => "驻守卫兵"
+    };
 
     private void Awake()
     {
         statusController = GetComponent<StatusController>();
-        if (visualRoot == null)
-            visualRoot = transform.Find("Visual");
-
-        Transform rendererRoot = visualRoot != null ? visualRoot : transform;
-        visualRenderers = rendererRoot.GetComponentsInChildren<Renderer>(true);
+        if (visualRoot == null) visualRoot = transform.Find("Visual");
+        visualRenderers = (visualRoot != null ? visualRoot : transform).GetComponentsInChildren<Renderer>(true);
         visualProperties = new MaterialPropertyBlock();
+        attackTelegraph = gameObject.AddComponent<RunnerEnemyTelegraph>();
+        gameObject.AddComponent<RunnerEnemyStatusView>();
+        // Defender bodies can be shot but can never stop the runner.
+        foreach (var body in GetComponentsInChildren<Collider>(true))
+            if (!(body is CharacterController)) body.isTrigger = true;
     }
 
-    public void ConfigureServer(
-        int seed,
-        int configuredLaneId,
-        float configuredDifficulty,
-        EnemyArchetype configuredArchetype)
+    public void ConfigureServer(int seed, int configuredLaneId, float configuredDifficulty, EnemyArchetype configuredArchetype)
     {
+        contentSeed = seed;
         laneId = configuredLaneId;
-        difficulty = Mathf.Max(0.25f, configuredDifficulty);
+        difficulty = Mathf.Max(.25f, configuredDifficulty);
         archetype = configuredArchetype;
-        strafeSign = (seed & 1) == 0 ? -1f : 1f;
-
-        LaneScope scope = GetComponent<LaneScope>();
-        if (scope == null)
-            scope = gameObject.AddComponent<LaneScope>();
+        var scope = GetComponent<LaneScope>() ?? gameObject.AddComponent<LaneScope>();
         scope.Configure(laneId);
-
         ApplyDifficultyOnce();
         if (IsSpawned && IsServer)
         {
             replicatedArchetype.Value = (byte)archetype;
+            replicatedLane.Value = laneId;
             currentHealth.Value = maxHealth;
-            SetState(EnemyAIState.Acquire, 0f);
+            replicatedMaxHealth.Value=maxHealth;
         }
     }
 
     public override void OnNetworkSpawn()
     {
+        activeEnemies.Add(this);
+        RunnerEnemyProjectileSystem.Ensure();
         replicatedArchetype.OnValueChanged += HandleVisualArchetypeChanged;
         replicatedState.OnValueChanged += HandleVisualStateChanged;
-
-        if (!IsServer)
+        replicatedLane.OnValueChanged += HandleLaneChanged;
+        if (IsServer)
         {
-            ApplyVisualFeedback(true);
-            return;
+            ApplyDifficultyOnce();
+            replicatedArchetype.Value = (byte)archetype;
+            replicatedLane.Value = laneId;
+            currentHealth.Value = maxHealth;
+            replicatedMaxHealth.Value=maxHealth;
+            dead.Value = false;
+            // Different defenders do not start every warning on the same frame.
+            nextAttackTime = Time.time + .2f + (contentSeed & 255) / 255f * .55f;
+            SetState(EnemyAIState.Acquire, 0);
+            ServerSpawned?.Invoke(this);
         }
-
-        ApplyDifficultyOnce();
-        replicatedArchetype.Value = (byte)archetype;
-        currentHealth.Value = maxHealth;
-        dead.Value = false;
-        FindNearestPlayer();
-        SetState(player != null ? EnemyAIState.Approach : EnemyAIState.Acquire, 0f);
+        HandleLaneChanged(-1, LaneId);
+        FaceForward();
         ApplyVisualFeedback(true);
     }
 
     public override void OnNetworkDespawn()
     {
+        activeEnemies.Remove(this);
         replicatedArchetype.OnValueChanged -= HandleVisualArchetypeChanged;
         replicatedState.OnValueChanged -= HandleVisualStateChanged;
+        replicatedLane.OnValueChanged -= HandleLaneChanged;
     }
 
-    public ReactionResult ApplyElement(
-        ElementType element,
-        float amount = 1f,
-        float duration = -1f,
-        float sourceDamage = 0f)
-    {
-        return statusController == null
-            ? ReactionResult.None
-            : statusController.ApplyElement(element, amount, duration, sourceDamage);
-    }
+    public override void OnDestroy() { activeEnemies.Remove(this); base.OnDestroy(); }
+
+    public ReactionResult ApplyElement(ElementType element, float amount = 1, float duration = -1, float sourceDamage = 0)
+        => statusController == null ? ReactionResult.None : statusController.ApplyElement(element, amount, duration, sourceDamage);
 
     private void Update()
     {
         ApplyVisualFeedback(false);
-
-        if (!IsServer || dead.Value)
+        UpdateTelegraph();
+        if (!IsServer || dead.Value) return;
+        if (IsFrozen)
+        {
+            // Freeze interrupts the windup; thawing requires a fresh warning.
+            if (aiState == EnemyAIState.Telegraph) SetState(EnemyAIState.Recover, .25f);
+            nextAttackTime = Mathf.Max(nextAttackTime, Time.time + .35f);
             return;
-        if (statusController != null && statusController.IsFrozen)
-            return;
-
+        }
         if (Time.time >= nextTargetRefresh || !IsTargetValid())
         {
-            nextTargetRefresh = Time.time + 0.6f;
-            FindNearestPlayer();
+            nextTargetRefresh = Time.time + .2f;
+            FindApproachingRunner();
         }
-
         if (!IsTargetValid())
         {
-            SetState(EnemyAIState.Acquire, 0f);
+            SetState(EnemyAIState.Acquire, 0);
             return;
         }
-
-        Vector3 toTarget = player.position - transform.position;
-        toTarget.y = 0f;
-
         switch (aiState)
         {
-            case EnemyAIState.Acquire:
-                SetState(EnemyAIState.Approach, 0f);
-                break;
-            case EnemyAIState.Approach:
-                UpdateApproach(toTarget);
-                break;
             case EnemyAIState.Telegraph:
-                Face(toTarget);
-                if (Time.time >= stateEndsAt)
-                    ExecuteTelegraphedAttack(toTarget);
-                break;
-            case EnemyAIState.Attack:
-                UpdateChargeAttack();
+                if (Time.time >= stateEndsAt) FireLockedAttack();
                 break;
             case EnemyAIState.Recover:
-                if (Time.time >= stateEndsAt)
-                    SetState(EnemyAIState.Approach, 0f);
-                break;
-        }
-    }
-
-    private void UpdateApproach(Vector3 toTarget)
-    {
-        float distance = toTarget.magnitude;
-        bool attackReady = Time.time >= nextAttackTime;
-
-        switch (archetype)
-        {
-            case EnemyArchetype.Strafer:
-                MoveStrafing(toTarget, distance, preferredRangedDistance * 0.65f);
-                if (attackReady && distance <= preferredRangedDistance)
-                    BeginTelegraph(toTarget);
-                break;
-            case EnemyArchetype.Charger:
-                if (attackReady && distance <= chargeTriggerDistance)
-                    BeginTelegraph(toTarget);
-                else
-                    MoveTowards(toTarget, moveSpeed);
-                break;
-            case EnemyArchetype.Ranged:
-                MoveStrafing(toTarget, distance, preferredRangedDistance);
-                if (attackReady && distance <= preferredRangedDistance * 1.35f)
-                    BeginTelegraph(toTarget);
+                if (Time.time >= stateEndsAt) SetState(EnemyAIState.Approach, 0);
                 break;
             default:
-                if (attackReady && distance <= attackDistance)
-                    BeginTelegraph(toTarget);
-                else
-                    MoveTowards(toTarget, moveSpeed);
+                if (Time.time >= nextAttackTime) BeginTelegraph();
                 break;
         }
     }
 
-    private void BeginTelegraph(Vector3 toTarget)
+    private void BeginTelegraph()
     {
-        chargeDirection = toTarget.sqrMagnitude > 0.001f ? toTarget.normalized : transform.forward;
-        SetState(EnemyAIState.Telegraph, telegraphDuration);
+        lockedDirection.Value = RunnerEnemyAttackPattern.LockDirection(archetype, MuzzlePosition, targetRunner.transform.position);
+        float duration = Mathf.Max(.65f, telegraphDuration) + (archetype == EnemyArchetype.Charger ? .4f : 0);
+        warningEndsAt.Value = NetworkManager.ServerTime.Time + duration;
+        SetState(EnemyAIState.Telegraph, duration);
     }
 
-    private void ExecuteTelegraphedAttack(Vector3 toTarget)
+    private void FireLockedAttack()
     {
-        if (archetype == EnemyArchetype.Charger)
+        if (!IsTargetValid()) { SetState(EnemyAIState.Acquire, 0); return; }
+        float speed = RunnerEnemyAttackPattern.ProjectileSpeed(archetype, difficulty);
+        int count = RunnerEnemyAttackPattern.ProjectileCount(archetype);
+        int damage = Mathf.Clamp(Mathf.RoundToInt(Mathf.Max(1, populationDamage) * 8 *
+            Mathf.Lerp(1, 1.5f, Mathf.InverseLerp(1, 4, difficulty))), 6, 12);
+        double now = NetworkManager.ServerTime.Time;
+        var system = RunnerEnemyProjectileSystem.Ensure();
+        for (int index = 0; index < count; index++)
         {
-            chargeDirection = toTarget.sqrMagnitude > 0.001f ? toTarget.normalized : chargeDirection;
-            chargeHit = false;
-            SetState(EnemyAIState.Attack, chargeDuration);
-            return;
+            Vector3 direction = RunnerEnemyAttackPattern.ShotDirection(archetype, lockedDirection.Value, index);
+            double launch = now + (archetype == EnemyArchetype.Ranged ? index * .18 : 0);
+            system.SpawnServer(this, MuzzlePosition, direction, speed, damage, .15f, 4.5f,
+                laneId, targetRunner.LaneCenterX, launch);
         }
-
-        float allowedDistance = archetype == EnemyArchetype.Chaser
-            ? attackDistance * 1.35f
-            : preferredRangedDistance * 1.5f;
-        if (toTarget.sqrMagnitude <= allowedDistance * allowedDistance)
-            DamageTarget();
-
-        nextAttackTime = Time.time + attackInterval;
-        SetState(EnemyAIState.Recover, recoverDuration);
+        nextAttackTime = Time.time + Mathf.Max(1.4f, attackInterval + .9f) +
+            (archetype == EnemyArchetype.Ranged ? .5f : 0);
+        SetState(EnemyAIState.Recover, Mathf.Max(.3f, recoverDuration));
     }
 
-    private void UpdateChargeAttack()
+    private void FindApproachingRunner()
     {
-        transform.position += chargeDirection * (chargeSpeed * Time.deltaTime);
-        Face(chargeDirection);
-
-        if (!chargeHit && IsTargetValid())
-        {
-            Vector3 delta = player.position - transform.position;
-            delta.y = 0f;
-            if (delta.sqrMagnitude <= attackDistance * attackDistance * 1.8f)
-            {
-                chargeHit = true;
-                DamageTarget();
-            }
-        }
-
-        if (Time.time >= stateEndsAt)
-        {
-            nextAttackTime = Time.time + attackInterval;
-            SetState(EnemyAIState.Recover, recoverDuration * 1.4f);
-        }
-    }
-
-    private void DamageTarget()
-    {
-        if (IsTargetValid())
-            crowd.DamageHealth(Mathf.Max(1, populationDamage) * 6);
-    }
-
-    private void MoveStrafing(Vector3 toTarget, float distance, float desiredDistance)
-    {
-        if (toTarget.sqrMagnitude < 0.001f)
-            return;
-
-        Vector3 forward = toTarget.normalized;
-        Vector3 lateral = Vector3.Cross(Vector3.up, forward) * strafeSign;
-        Vector3 movement = lateral;
-
-        if (distance > desiredDistance + 0.75f)
-            movement += forward * 0.8f;
-        else if (distance < desiredDistance - 0.75f)
-            movement -= forward * 0.8f;
-
-        MoveTowards(movement, moveSpeed * 0.85f);
-        Face(forward);
-    }
-
-    private void MoveTowards(Vector3 direction, float speed)
-    {
-        if (direction.sqrMagnitude < 0.001f)
-            return;
-
-        Vector3 normalized = direction.normalized;
-        transform.position += normalized * (speed * Time.deltaTime);
-        Face(normalized);
-    }
-
-    private void Face(Vector3 direction)
-    {
-        direction.y = 0f;
-        if (direction.sqrMagnitude < 0.001f)
-            return;
-
-        Transform facingTarget = visualRoot != null ? visualRoot : transform;
-        facingTarget.rotation = Quaternion.LookRotation(direction.normalized);
-    }
-
-    private void FindNearestPlayer()
-    {
-        player = null;
-        crowd = null;
         targetRunner = null;
-
-        NetworkManager manager = NetworkManager.Singleton;
-        if (manager == null)
-            return;
-
-        float nearestSqr = Mathf.Infinity;
-        foreach (var pair in manager.ConnectedClients)
+        if (NetworkManager == null) return;
+        float best = float.PositiveInfinity;
+        foreach (var pair in NetworkManager.ConnectedClients)
         {
-            NetworkObject playerObject = pair.Value.PlayerObject;
-            if (playerObject == null || !playerObject.IsSpawned)
-                continue;
-
-            RunnerController candidateRunner = playerObject.GetComponent<RunnerController>();
-            CrowdManager candidateCrowd = playerObject.GetComponent<CrowdManager>();
-            if (candidateRunner == null || candidateCrowd == null || candidateCrowd.Health <= 0)
-                continue;
-            if (laneId >= 0 && candidateRunner.LaneId != laneId)
-                continue;
-            if (candidateRunner.Phase == PlayerRunPhase.Eliminated)
-                continue;
-
-            float sqr = (playerObject.transform.position - transform.position).sqrMagnitude;
-            if (sqr >= nearestSqr)
-                continue;
-
-            nearestSqr = sqr;
-            player = playerObject.transform;
-            crowd = candidateCrowd;
-            targetRunner = candidateRunner;
+            var pawn = pair.Value.PlayerObject;
+            if (pawn == null || !pawn.IsSpawned) continue;
+            var runner = pawn.GetComponent<RunnerController>();
+            var stats = pawn.GetComponent<CrowdManager>();
+            if (runner == null || stats == null || stats.Health <= 0 ||
+                (laneId >= 0 && runner.LaneId != laneId) || !IsMovingPhase(runner.Phase)) continue;
+            float distance = transform.position.z - runner.transform.position.z;
+            if (!RunnerEnemyAttackPattern.CanEngage(distance) || distance >= best) continue;
+            best = distance; targetRunner = runner;
         }
     }
 
     private bool IsTargetValid()
     {
-        return player != null &&
-               crowd != null &&
-               targetRunner != null &&
-               crowd.Population > 0 &&
-               targetRunner.Phase != PlayerRunPhase.Eliminated &&
-               (laneId < 0 || targetRunner.LaneId == laneId);
+        if (targetRunner == null || !targetRunner.IsSpawned || !IsMovingPhase(targetRunner.Phase) ||
+            (laneId >= 0 && targetRunner.LaneId != laneId)) return false;
+        var stats = targetRunner.GetComponent<CrowdManager>();
+        return stats != null && stats.Health > 0 &&
+            RunnerEnemyAttackPattern.CanEngage(transform.position.z - targetRunner.transform.position.z);
+    }
+
+    private static bool IsMovingPhase(PlayerRunPhase phase)
+        => phase == PlayerRunPhase.Running || phase == PlayerRunPhase.Combat;
+
+    private void FaceForward()
+    {
+        var facing = visualRoot != null ? visualRoot : transform;
+        facing.rotation = Quaternion.LookRotation(Vector3.back);
+    }
+
+    private void UpdateTelegraph()
+    {
+        bool visible = IsSpawned && !IsDead && !IsFrozen && State == EnemyAIState.Telegraph;
+        attackTelegraph.Show(visible, MuzzlePosition, lockedDirection.Value, Archetype,
+            Mathf.Max(0, (float)(warningEndsAt.Value - (NetworkManager != null ? NetworkManager.ServerTime.Time : Time.timeAsDouble))));
     }
 
     private void SetState(EnemyAIState state, float duration)
     {
-        aiState = state;
-        stateEndsAt = duration > 0f ? Time.time + duration : 0f;
-        if (IsServer)
-            replicatedState.Value = (byte)state;
+        if (aiState == state && duration <= 0) return;
+        aiState = state; stateEndsAt = Time.time + duration;
+        if (IsServer) replicatedState.Value = (byte)state;
     }
 
-    private void HandleVisualArchetypeChanged(byte previous, byte current)
+    private void HandleVisualArchetypeChanged(byte previous, byte current) { ApplyVisualFeedback(true); }
+    private void HandleVisualStateChanged(byte previous, byte current) { ApplyVisualFeedback(true); }
+    private void HandleLaneChanged(int previous, int current)
     {
-        ApplyVisualFeedback(true);
+        var scope = GetComponent<LaneScope>() ?? gameObject.AddComponent<LaneScope>();
+        scope.Configure(current);
     }
-
-    private void HandleVisualStateChanged(byte previous, byte current)
-    {
-        ApplyVisualFeedback(true);
-    }
-
-    /// <summary>
-    /// Makes the four behaviours and their telegraph windows readable without
-    /// requiring bespoke enemy prefabs. MaterialPropertyBlock keeps this local
-    /// to the enemy instance and avoids allocating duplicate materials.
-    /// </summary>
     private void ApplyVisualFeedback(bool force)
     {
-        if (visualRenderers == null || visualRenderers.Length == 0)
-            return;
-
-        EnemyArchetype visualArchetype = Archetype;
-        EnemyAIState visualState = State;
-        bool pulsing = visualState == EnemyAIState.Telegraph;
-        if (!force && !pulsing &&
-            lastVisualArchetype == visualArchetype &&
-            lastVisualState == visualState)
+        if (visualRenderers == null) return;
+        var kind = Archetype; var state = State;
+        bool pulse = state == EnemyAIState.Telegraph;
+        if (!force && !pulse && lastVisualArchetype == kind && lastVisualState == state) return;
+        lastVisualArchetype = kind; lastVisualState = state;
+        Color tint = kind switch
         {
-            return;
-        }
-
-        lastVisualArchetype = visualArchetype;
-        lastVisualState = visualState;
-
-        Color baseColor = visualArchetype switch
-        {
-            EnemyArchetype.Strafer => new Color(.42f,.53f,.57f),
-            EnemyArchetype.Charger => new Color(.71f,.44f,.32f),
-            EnemyArchetype.Ranged => new Color(.52f,.47f,.58f),
-            _ => new Color(.64f,.36f,.31f)
+            EnemyArchetype.Strafer => new Color(.42f, .53f, .57f),
+            EnemyArchetype.Charger => new Color(.71f, .44f, .32f),
+            EnemyArchetype.Ranged => new Color(.52f, .47f, .58f), _ => new Color(.64f, .36f, .31f)
         };
-
-        Color displayColor = baseColor;
-        switch (visualState)
+        if (pulse) tint = Color.Lerp(tint, new Color(.96f, .82f, .56f), .5f + Mathf.Sin(Time.unscaledTime * 14) * .3f);
+        else if (state == EnemyAIState.Recover) tint = Color.Lerp(tint, Color.black, .15f);
+        foreach (var renderer in visualRenderers)
         {
-            case EnemyAIState.Telegraph:
-                float pulse = 0.5f + Mathf.Sin(Time.unscaledTime * 18f) * 0.5f;
-                displayColor = Color.Lerp(baseColor, new Color(.96f, .82f, .56f), pulse);
-                break;
-            case EnemyAIState.Attack:
-                displayColor = Color.Lerp(baseColor, Color.white, 0.55f);
-                break;
-            case EnemyAIState.Recover:
-                displayColor = Color.Lerp(baseColor, Color.black, 0.35f);
-                break;
-        }
-
-        for (int i = 0; i < visualRenderers.Length; i++)
-        {
-            Renderer targetRenderer = visualRenderers[i];
-            if (targetRenderer == null)
-                continue;
-
-            targetRenderer.GetPropertyBlock(visualProperties);
-            visualProperties.SetColor("_BaseColor", displayColor);
-            visualProperties.SetColor("_Color", displayColor);
-            targetRenderer.SetPropertyBlock(visualProperties);
+            if (renderer == null) continue;
+            renderer.GetPropertyBlock(visualProperties);
+            visualProperties.SetColor("_BaseColor", tint); visualProperties.SetColor("_Color", tint);
+            renderer.SetPropertyBlock(visualProperties);
         }
     }
 
     private void ApplyDifficultyOnce()
     {
-        if (difficultyApplied)
-            return;
-
+        if (difficultyApplied) return;
         difficultyApplied = true;
-        float scalar = Mathf.Max(0.25f, difficulty);
-        maxHealth *= Mathf.Lerp(0.8f, 1.75f, Mathf.InverseLerp(0.5f, 4f, scalar));
-        populationDamage = Mathf.Max(1, Mathf.RoundToInt(populationDamage * Mathf.Lerp(1f, 2.2f, Mathf.InverseLerp(1f, 4f, scalar))));
-        moveSpeed *= Mathf.Lerp(0.9f, 1.25f, Mathf.InverseLerp(1f, 4f, scalar));
+        var random=new ProceduralRandom(ProceduralRandom.Derive(contentSeed,441,laneId));
+        float role=archetype==EnemyArchetype.Charger?1.25f:archetype==EnemyArchetype.Ranged?1.1f:1;
+        maxHealth*=Mathf.Max(.5f,.95f+.35f*Mathf.Pow(difficulty,1.08f))*random.Range(.9f,1.15f)*role;
+        attackInterval*=random.Range(.9f,1.15f);
+        populationDamage = Mathf.Max(1, populationDamage);
     }
 
     public void TakeDamage(float damage, ElementType element)
     {
-        if (!IsServer || dead.Value || damage <= 0f)
-            return;
-
-        currentHealth.Value -= damage;
+        if (!IsServer || dead.Value || !ArenaProtocol.IsFinite(damage) || damage <= 0) return;
+        currentHealth.Value = Mathf.Max(0, currentHealth.Value - damage);
         DamageFeedbackClientRpc(damage, element);
-        if (currentHealth.Value <= 0f)
-            Die();
+        if (currentHealth.Value <= 0) Die();
     }
 
     [ClientRpc]
     private void DamageFeedbackClientRpc(float damage, ElementType element)
     {
         Damaged?.Invoke(damage, element);
-        if (visualAnimator != null)
-            visualAnimator.SetTrigger("Hit");
+        if (visualAnimator != null) visualAnimator.SetTrigger("Hit");
     }
 
     private void Die()
     {
-        if (!IsServer || dead.Value)
-            return;
-
+        if (!IsServer || dead.Value) return;
         dead.Value = true;
+        // Drop listeners see the exact stationary position before despawn.
         Died?.Invoke(this);
-
-        if (NetworkObject != null && NetworkObject.IsSpawned)
-            NetworkObject.Despawn(true);
-        else
-            Destroy(gameObject);
+        if (NetworkObject != null && NetworkObject.IsSpawned) NetworkObject.Despawn(true);
+        else Destroy(gameObject);
     }
 }

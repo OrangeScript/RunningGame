@@ -117,6 +117,7 @@ public static class RunningArenaPlayModeSmoke
             return;
 
         Debug.Log($"{Prefix} Starting solo Host through RoomSession.");
+        NetworkManager.Singleton.GetComponent<Unity.Netcode.Transports.UTP.UnityTransport>().SetConnectionData("127.0.0.1",7885,"0.0.0.0");
         room.StartSoloRunning();
         SessionState.SetInt(PhaseKey, 1);
     }

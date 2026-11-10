@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   networkId: 1313
   upgradeName: "护心镜"
-  description: "首领战受到的伤害降低 12%。"
+  description: "受到伤害降低 12%，同时适用于道路与首领战。"
   icon: {fileID: 0}
   iconKey: shield
   effect: {fileID: 11400000, guid: b0520000000000000000000000000521, type: 2}
@@ -22,6 +22,6 @@ MonoBehaviour:
   rarity: 1
   stackPolicy: 1
   supportedModes: 7
-  acquisitionSources: 3
+  acquisitionSources: 27
   temporaryDuration: 30
   modeEffects: []

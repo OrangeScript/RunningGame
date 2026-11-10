@@ -6,6 +6,8 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 
+public enum ArenaBulletClearReason : byte { Ability, PhaseTransition, ArmorBreak, Bomb, GrazeBurst, MatchEnd }
+
 /// <summary>
 /// Zero-reference Arena installer. It creates presentation, bounds, Boss and
 /// custom-message replication when the Arena scene is loaded.
@@ -13,9 +15,10 @@ using UnityEngine.SceneManagement;
 [DefaultExecutionOrder(-500)]
 public sealed class ArenaBootstrap : MonoBehaviour
 {
-    private const string BulletMessage = "Running.Arena.BossBullet.v2";
+    private const string BulletMessage = "Running.Arena.BossBullet.v3";
     private const string StateMessage = "Running.Arena.BossState.v2";
-    private const string ClearMessage = "Running.Arena.Clear.v1";
+    private const string ClearMessage = "Running.Arena.Clear.v2";
+    private const string PoseMessage = "Running.Arena.BossPose.v1";
     private static bool hooksInstalled;
 
     [SerializeField] private Vector2 arenaHalfExtents = new Vector2(18f, 12f);
@@ -26,6 +29,7 @@ public sealed class ArenaBootstrap : MonoBehaviour
         public Vector3 Origin,Direction;
         public float Speed,Lifetime,Damage,Radius,Warning;
         public byte Style;
+        public double Born;
     }
     private readonly List<BulletSpawn> pendingBullets=new List<BulletSpawn>();
 
@@ -36,6 +40,12 @@ public sealed class ArenaBootstrap : MonoBehaviour
     private bool environmentCreated;
     private float nextPlayerScan;
     private bool loggedMissingPlayerNetwork;
+    private ArenaRemoteBuffer bossPoseBuffer;
+    private double nextBossPose;
+    public Vector3 BossPosition=>bossVisual!=null?bossVisual.transform.position:bossPosition;
+    public int ReceivedBossPoseCount { get; private set; }
+    public string ClearNotice { get; private set; }="";
+    public float ClearNoticeUntil { get; private set; }
 
     public static event Action<ArenaMatchResult> MatchEnded;
 
@@ -124,6 +134,7 @@ public sealed class ArenaBootstrap : MonoBehaviour
             networkManager.CustomMessagingManager.UnregisterNamedMessageHandler(BulletMessage);
             networkManager.CustomMessagingManager.UnregisterNamedMessageHandler(StateMessage);
             networkManager.CustomMessagingManager.UnregisterNamedMessageHandler(ClearMessage);
+            networkManager.CustomMessagingManager.UnregisterNamedMessageHandler(PoseMessage);
         }
     }
 
@@ -143,10 +154,13 @@ public sealed class ArenaBootstrap : MonoBehaviour
         double born=networkManager.ServerTime.Time;
         ArenaBossProjectile.Spawn(origin,direction,speed,lifetime,damage,radius,true,warning,style,born);
         pendingBullets.Add(new BulletSpawn{Origin=origin,Direction=direction,Speed=speed,Lifetime=lifetime,
-            Damage=damage,Radius=radius,Warning=warning,Style=style});
+            Damage=damage,Radius=radius,Warning=warning,Style=style,Born=born});
     }
 
     private void LateUpdate()
+    { FlushBossBullets(); }
+
+    private void FlushBossBullets()
     {
         if(!IsServerAuthority||pendingBullets.Count==0)return;
         for(int offset=0;offset<pendingBullets.Count;offset+=20)
@@ -154,13 +168,14 @@ public sealed class ArenaBootstrap : MonoBehaviour
             using(var writer=new FastBufferWriter(1200,Allocator.Temp))
             {
                 int count=Mathf.Min(20,pendingBullets.Count-offset);
-                writer.WriteValueSafe(count); writer.WriteValueSafe(networkManager.ServerTime.Time);
+                writer.WriteValueSafe(count);
                 for(int i=offset;i<offset+count;i++)
                 {
                     var bullet=pendingBullets[i];
                     writer.WriteValueSafe(bullet.Origin);writer.WriteValueSafe(bullet.Direction);
                     writer.WriteValueSafe(bullet.Speed);writer.WriteValueSafe(bullet.Lifetime);writer.WriteValueSafe(bullet.Damage);
                     writer.WriteValueSafe(bullet.Radius);writer.WriteValueSafe(bullet.Warning);writer.WriteValueSafe(bullet.Style);
+                    writer.WriteValueSafe(bullet.Born);
                 }
                 networkManager.CustomMessagingManager.SendNamedMessageToAll(BulletMessage,writer,NetworkDelivery.ReliableSequenced);
             }
@@ -168,16 +183,34 @@ public sealed class ArenaBootstrap : MonoBehaviour
         pendingBullets.Clear();
     }
 
-    public void ClearBossBullets(Vector3? center=null,float radius=100)
+    public void ClearBossBullets(Vector3? center=null,float radius=100,ArenaBulletClearReason reason=ArenaBulletClearReason.Ability)
     {
         if(!IsServerAuthority)return;
-        Vector3 origin=center??Vector3.zero;
-        ArenaBossProjectile.Clear(origin,radius);
-        pendingBullets.RemoveAll(bullet=>Vector3.Distance(bullet.Origin,origin)<=radius);
-        using(var writer=new FastBufferWriter(24,Allocator.Temp))
+        // Flush before the clear so peers see spawn/clear in the same order.
+        // Filtering queued spawn origins gives a different answer from testing
+        // moving bullets at the event time, especially with a local R burst.
+        FlushBossBullets();
+        Vector3 origin=center??BossPosition;
+        double atTime=networkManager.ServerTime.Time;
+        ArenaBossProjectile.Clear(origin,radius,atTime);
+        ShowClearNotice(reason);
+        using(var writer=new FastBufferWriter(32,Allocator.Temp))
         {
             writer.WriteValueSafe(origin);writer.WriteValueSafe(radius);
+            writer.WriteValueSafe(atTime);writer.WriteValueSafe((byte)reason);
             networkManager.CustomMessagingManager.SendNamedMessageToAll(ClearMessage,writer,NetworkDelivery.ReliableSequenced);
+        }
+    }
+
+    public void BroadcastBossPose(Vector3 position,Vector3 forward,Vector3 velocity)
+    {
+        if(!IsServerAuthority||networkManager.ServerTime.Time<nextBossPose)return;
+        double now=networkManager.ServerTime.Time;nextBossPose=now+.05;
+        using(var writer=new FastBufferWriter(64,Allocator.Temp))
+        {
+            writer.WriteValueSafe(now);writer.WriteValueSafe(position);
+            writer.WriteValueSafe(forward);writer.WriteValueSafe(velocity);
+            networkManager.CustomMessagingManager.SendNamedMessageToAll(PoseMessage,writer,NetworkDelivery.UnreliableSequenced);
         }
     }
 
@@ -218,6 +251,7 @@ public sealed class ArenaBootstrap : MonoBehaviour
         networkManager.CustomMessagingManager.RegisterNamedMessageHandler(BulletMessage, HandleBulletMessage);
         networkManager.CustomMessagingManager.RegisterNamedMessageHandler(StateMessage, HandleStateMessage);
         networkManager.CustomMessagingManager.RegisterNamedMessageHandler(ClearMessage,HandleClearMessage);
+        networkManager.CustomMessagingManager.RegisterNamedMessageHandler(PoseMessage,HandlePoseMessage);
         messagesRegistered = true;
     }
 
@@ -226,13 +260,14 @@ public sealed class ArenaBootstrap : MonoBehaviour
         if (networkManager == null || senderClientId != NetworkManager.ServerClientId || networkManager.IsServer)
             return;
 
-        reader.ReadValueSafe(out int count);reader.ReadValueSafe(out double born);
+        reader.ReadValueSafe(out int count);
         if(count<0||count>20)return;
         for(int i=0;i<count;i++)
         {
             reader.ReadValueSafe(out Vector3 origin);reader.ReadValueSafe(out Vector3 direction);
             reader.ReadValueSafe(out float speed);reader.ReadValueSafe(out float lifetime);reader.ReadValueSafe(out float damage);
             reader.ReadValueSafe(out float radius);reader.ReadValueSafe(out float warning);reader.ReadValueSafe(out byte style);
+            reader.ReadValueSafe(out double born);
             ArenaBossProjectile.Spawn(origin,direction,speed,lifetime,damage,radius,false,warning,style,born);
         }
     }
@@ -241,7 +276,33 @@ public sealed class ArenaBootstrap : MonoBehaviour
     {
         if(sender!=NetworkManager.ServerClientId||IsServerAuthority)return;
         reader.ReadValueSafe(out Vector3 center);reader.ReadValueSafe(out float radius);
-        ArenaBossProjectile.Clear(center,radius);
+        reader.ReadValueSafe(out double atTime);reader.ReadValueSafe(out byte reason);
+        ArenaBossProjectile.Clear(center,radius,atTime);
+        ShowClearNotice((ArenaBulletClearReason)reason);
+    }
+
+    private void HandlePoseMessage(ulong sender,FastBufferReader reader)
+    {
+        if(sender!=NetworkManager.ServerClientId||IsServerAuthority||bossPoseBuffer==null)return;
+        reader.ReadValueSafe(out double time);reader.ReadValueSafe(out Vector3 position);
+        reader.ReadValueSafe(out Vector3 forward);reader.ReadValueSafe(out Vector3 velocity);
+        bossPoseBuffer.SetPlaybackEnabled(true);
+        bossPoseBuffer.Push(new ArenaStateSnapshot{ServerTime=time,Position=position,Forward=forward,Velocity=velocity});
+        ReceivedBossPoseCount++;
+    }
+
+    private void ShowClearNotice(ArenaBulletClearReason reason)
+    {
+        ClearNotice=reason switch
+        {
+            ArenaBulletClearReason.PhaseTransition=>"符卡切换 · 弹幕消散",
+            ArenaBulletClearReason.ArmorBreak=>"镜甲破碎 · 弹幕消散",
+            ArenaBulletClearReason.Bomb=>"空白符 · 消弹",
+            ArenaBulletClearReason.GrazeBurst=>"擦弹释放 · 消弹",
+            ArenaBulletClearReason.MatchEnd=>"战斗结束",
+            _=>"弹幕消散"
+        };
+        ClearNoticeUntil=Time.unscaledTime+1.5f;
     }
 
     private void HandleStateMessage(ulong senderClientId, FastBufferReader reader)
@@ -315,6 +376,7 @@ public sealed class ArenaBootstrap : MonoBehaviour
         bossVisual = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         bossVisual.name = "ArenaBoss_Runtime";
         bossVisual.AddComponent<ArenaBossHitSurface>();
+        bossPoseBuffer=bossVisual.AddComponent<ArenaRemoteBuffer>();
         bossVisual.transform.position = bossPosition;
         bossVisual.transform.localScale = new Vector3(2.4f, 2.8f, 2.4f);
         Renderer bossRenderer = bossVisual.GetComponent<Renderer>();

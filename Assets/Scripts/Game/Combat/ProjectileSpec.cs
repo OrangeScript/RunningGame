@@ -26,6 +26,11 @@ public class ProjectileSpec
     public float explosionDamageMultiplier = 1f;
     public int pierce = 0;
     public float pierceRange = 8f;
+    // Zero turn rate is a genuinely straight projectile: no target scan.
+    public float homingTurnRate;
+    public float homingMaxAngle = 12f;
+    public float homingAcquireRange = 18f;
+    public float obstacleDamageMultiplier = 1f;
 
 
     public ProjectileSpec Clone()
@@ -41,6 +46,10 @@ public class ProjectileSpec
             bounceRange = bounceRange,
             pierce = pierce,
             pierceRange = pierceRange,
+            homingTurnRate = homingTurnRate,
+            homingMaxAngle = homingMaxAngle,
+            homingAcquireRange = homingAcquireRange,
+            obstacleDamageMultiplier = obstacleDamageMultiplier,
             explosionRadius = explosionRadius,
             explosionDamageMultiplier = explosionDamageMultiplier
         };

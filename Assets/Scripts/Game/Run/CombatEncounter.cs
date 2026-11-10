@@ -2,516 +2,288 @@ using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
-
+/// <summary>
+/// A stretch of road containing stationary defenders. Enemies are prepared
+/// before they enter view; passing or clearing the group never stops movement.
+/// </summary>
 [RequireComponent(typeof(BoxCollider))]
 public class CombatEncounter : NetworkBehaviour
 {
-
-    [Header("References")]
-
-    private GameManager gameManager;
-
-
     [Header("Enemy")]
-
-    [SerializeField]
-    private Enemy enemyPrefab;
-
-    [SerializeField]
-    private Enemy[] enemyVariants;
-
-    [SerializeField]
-    private Transform[] spawnPoints;
-
+    [SerializeField] private Enemy enemyPrefab;
+    [SerializeField] private Enemy[] enemyVariants;
+    [SerializeField] private Transform[] spawnPoints;
     [Header("Procedural Encounter")]
-    [SerializeField, Min(1f)] private float baseSpawnBudget = 3f;
+    [SerializeField, Min(1)] private float baseSpawnBudget = 3;
     [SerializeField, Min(1)] private int maximumEnemies = 10;
-    [SerializeField, Min(0f)] private float spawnJitter = 1.6f;
+    [SerializeField, Min(0)] private float spawnJitter = 1.6f;
+    [Header("Legacy barriers (always open)")]
+    [SerializeField] private GameObject[] barriers;
 
-
-    [Header("Barriers")]
-
-    [SerializeField]
-    private GameObject[] barriers;
-
-
-    private readonly List<Enemy>
-        aliveEnemies =
-            new List<Enemy>();
-
-
-    private bool started;
-
-    private bool cleared;
-
-    private bool finished;
+    private readonly List<Enemy> aliveEnemies = new List<Enemy>();
+    private GameManager gameManager;
     private RunnerController participant;
-    private int contentSeed;
-    private int laneId = -1;
-    private float difficulty = 1f;
-    private bool configured;
-
+    private bool configured, prepared, started, cleared, finished;
+    private int contentSeed, laneId = -1;
+    private float difficulty = 1, retirementZ = 26;
     private readonly NetworkVariable<int> replicatedSeed = new NetworkVariable<int>();
     private readonly NetworkVariable<int> replicatedLaneId = new NetworkVariable<int>(-1);
-    private readonly NetworkVariable<float> replicatedDifficulty = new NetworkVariable<float>(1f);
+    private readonly NetworkVariable<float> replicatedDifficulty = new NetworkVariable<float>(1);
 
-    private NetworkVariable<bool>
-        barriersActive =
-            new NetworkVariable<bool>(
-                false
-            );
-    public bool IsStarted =>
-        started;
+    public bool IsStarted => started;
+    public bool IsCleared => cleared;
+    public bool IsFinished => finished;
+    public bool IsPrepared => prepared;
+    public int LaneId => IsSpawned ? replicatedLaneId.Value : laneId;
+    public IReadOnlyList<Enemy> AliveEnemies => aliveEnemies;
 
-    public bool IsCleared =>
-        cleared;
-
-    public bool IsFinished =>
-        finished;
-
-    public int LaneId => laneId;
-
-    void Awake()
+    private void Awake()
     {
-        BoxCollider trigger = GetComponent<BoxCollider>();
-        trigger.isTrigger = true;
+        var trigger = GetComponent<BoxCollider>(); trigger.isTrigger = true;
+        OpenBarriers();
     }
 
     public override void OnNetworkSpawn()
     {
         gameManager = GameManager.instance;
-        barriersActive.OnValueChanged += HandleBarrierChanged;
-        HandleBarrierChanged(false,barriersActive.Value);
-
+        OpenBarriers();
         if (IsServer && !configured)
         {
-            LevelSection section = GetComponentInParent<LevelSection>();
-            int fallbackSeed = section != null && section.HasRuntimePlan
-                ? section.ContentSeed
-                : ProceduralRandom.Derive(gameObject.scene.buildIndex, transform.GetSiblingIndex());
-            int fallbackLane = section != null ? section.LaneIndex : -1;
-            ConfigureServer(fallbackSeed, fallbackLane, 1f);
-        }
-        else if (!IsServer)
-        {
-            contentSeed = replicatedSeed.Value;
-            laneId = replicatedLaneId.Value;
-            difficulty = replicatedDifficulty.Value;
-        }
-        
-    }
-
-    public override void OnNetworkDespawn()
-    {
-        barriersActive.OnValueChanged -= HandleBarrierChanged;
-        foreach(Enemy enemy in aliveEnemies)
-        {
-            if(enemy != null)
+            var section = GetComponentInParent<LevelSection>();
+            // Planned roads are configured by ProceduralSectionRuntime after
+            // obstacles exist, so placement can reject their swept footprints.
+            if (section == null || !section.HasRuntimePlan)
             {
-                enemy.Died -= HandleEnemyDied;
+                int seed = ProceduralRandom.Derive(gameObject.scene.buildIndex, transform.GetSiblingIndex());
+                ConfigureServer(seed, section != null ? section.LaneIndex : -1, 1);
             }
         }
     }
 
-    private void HandleBarrierChanged(bool previousValue, bool newValue)
+    public override void OnNetworkDespawn()
     {
-        if (barriers == null)
-            return;
-
-        foreach (
-            GameObject barrier
-            in barriers
-        )
-        {
-            if (barrier == null)
-                continue;
-
-
-            barrier.SetActive(
-                newValue
-            );
-        }
+        foreach (var enemy in aliveEnemies) if (enemy != null) enemy.Died -= HandleEnemyDied;
+        if (IsServer) RetireRemainingEnemies();
     }
 
     public void ConfigureServer(int seed, int configuredLaneId, float configuredDifficulty)
     {
-        if (!IsServer)
-            return;
-
-        configured = true;
-        contentSeed = seed;
-        laneId = configuredLaneId;
-        difficulty = Mathf.Max(0.25f, configuredDifficulty);
-        replicatedSeed.Value = contentSeed;
-        replicatedLaneId.Value = laneId;
+        if (!IsServer || prepared) return;
+        configured = true; contentSeed = seed; laneId = configuredLaneId;
+        difficulty = Mathf.Max(.25f, configuredDifficulty);
+        replicatedSeed.Value = contentSeed; replicatedLaneId.Value = laneId;
         replicatedDifficulty.Value = difficulty;
-
-        LaneScope scope = GetComponent<LaneScope>();
-        if (scope == null)
-            scope = gameObject.AddComponent<LaneScope>();
-        scope.Configure(laneId);
+        var scope = GetComponent<LaneScope>() ?? gameObject.AddComponent<LaneScope>(); scope.Configure(laneId);
+        OpenBarriers();
+        SpawnEnemies();
     }
 
     public void BuildObstacleFieldServer(int seed, int configuredLaneId, float configuredDifficulty)
     {
-        if (!IsServer)
-            return;
-
-        Transform root = ResolveSectionRoot();
-        ProceduralObstacleField.Build(root, seed, configuredLaneId, configuredDifficulty, true);
+        if (!IsServer) return;
+        ProceduralObstacleField.Build(ResolveSectionRoot(), seed, configuredLaneId, configuredDifficulty, true);
         BuildObstacleFieldClientRpc(seed, configuredLaneId, configuredDifficulty);
     }
 
     [ClientRpc]
     private void BuildObstacleFieldClientRpc(int seed, int configuredLaneId, float configuredDifficulty)
     {
-        if (IsServer)
-            return;
+        if (!IsServer) ProceduralObstacleField.Build(ResolveSectionRoot(), seed, configuredLaneId, configuredDifficulty, false);
+    }
 
-        ProceduralObstacleField.Build(
-            ResolveSectionRoot(), seed, configuredLaneId, configuredDifficulty, false);
+    private void Update()
+    {
+        if (!IsServer || !prepared || finished) return;
+        if (!started) TryBeginForApproachingRunner();
+        if (participant == null) return;
+        float forwardPosition = ResolveSectionRoot().InverseTransformPoint(participant.transform.position).z;
+        if (!participant.IsSpawned || participant.Phase == PlayerRunPhase.Eliminated || forwardPosition > retirementZ)
+        {
+            // Passing a defender is not a kill and must never create a drop.
+            gameManager?.CompleteCombat(this, participant);
+            FinishEncounter();
+        }
+    }
+
+    private void TryBeginForApproachingRunner()
+    {
+        if (NetworkManager == null) return;
+        Transform root = ResolveSectionRoot();
+        foreach (var pair in NetworkManager.ConnectedClients)
+        {
+            var player = pair.Value.PlayerObject;
+            var runner = player != null ? player.GetComponent<RunnerController>() : null;
+            if (runner == null || !runner.IsSpawned || (laneId >= 0 && runner.LaneId != laneId) ||
+                (runner.Phase != PlayerRunPhase.Running && runner.Phase != PlayerRunPhase.Combat)) continue;
+            float distance = root.InverseTransformPoint(runner.transform.position).z;
+            if (distance >= -RunnerEnemyAttackPattern.ActivationRange && distance < retirementZ)
+            { BeginEncounter(runner); return; }
+        }
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (IsServer && !started) BeginEncounter(other.GetComponentInParent<RunnerController>());
+    }
+
+    public void BeginEncounter(RunnerController runner)
+    {
+        if (!IsServer || started || finished || runner == null || (laneId >= 0 && runner.LaneId != laneId)) return;
+        if (runner.Phase != PlayerRunPhase.Running && runner.Phase != PlayerRunPhase.Combat) return;
+        if (gameManager == null) gameManager = GameManager.instance;
+        if (!prepared)
+        {
+            if (!configured) ConfigureServer(ProceduralRandom.Derive(gameObject.scene.buildIndex, GetInstanceID()), runner.LaneId, 1);
+            else SpawnEnemies();
+        }
+        participant = runner; started = true;
+        // Registration is advisory. Adjacent road groups may be active at the
+        // same time; one group cannot lock out the next group or its shooting.
+        gameManager?.BeginCombat(this, runner);
+        OpenBarriers();
+        if (cleared) gameManager?.CompleteCombat(this, participant);
     }
 
     public void FinishEncounter()
     {
-        if (finished)
-            return;
+        if (finished) return;
+        finished = true; OpenBarriers();
+        if (IsServer) RetireRemainingEnemies();
+    }
 
-
-        finished =
-            true;
-
-
-        SetBarriers(
-            false
-        );
-
-        if (IsServer)
+    private void RetireRemainingEnemies()
+    {
+        for (int i = aliveEnemies.Count - 1; i >= 0; i--)
         {
-            for (int i = aliveEnemies.Count - 1; i >= 0; i--)
-            {
-                Enemy enemy = aliveEnemies[i];
-                if (enemy == null)
-                    continue;
-
-                enemy.Died -= HandleEnemyDied;
-                if (enemy.NetworkObject != null && enemy.NetworkObject.IsSpawned)
-                    enemy.NetworkObject.Despawn(true);
-                else
-                    Destroy(enemy.gameObject);
-            }
-
-            aliveEnemies.Clear();
+            var enemy = aliveEnemies[i]; if (enemy == null) continue;
+            enemy.Died -= HandleEnemyDied;
+            // Despawn intentionally bypasses Enemy.Die and therefore loot.
+            if (enemy.NetworkObject != null && enemy.NetworkObject.IsSpawned) enemy.NetworkObject.Despawn(true);
+            else Destroy(enemy.gameObject);
         }
-
-
-        Debug.Log(
-            $"{name} Finished"
-        );
+        aliveEnemies.Clear();
     }
-
-
-    private void SetBarriers(
-        bool active
-    )
-    {
-        if(!IsServer) return;
-        barriersActive.Value = active;
-        
-    }
-
-
-    void Start()
-    {
-        gameManager = GameManager.instance;
-        SetBarriers(false);
-    }
-
-    private void OnTriggerEnter(
-        Collider other
-    )
-    {
-        if(!IsServer) return;
-        if (started)
-            return;
-
-
-        RunnerController player =
-            other.GetComponentInParent<
-                RunnerController
-            >();
-
-
-        if (player == null)
-            return;
-
-        // Parallel roads can be physically close enough for a large player
-        // collider to brush a neighbouring encounter trigger. Never let one
-        // lane claim another lane's encounter/runner pair.
-        if (laneId >= 0 && player.LaneId != laneId)
-            return;
-
-
-        BeginEncounter(player);
-    }
-
-
-    // ========================================
-    // Begin
-    // ========================================
-
-    public void BeginEncounter(RunnerController runner)
-    {
-        if (!IsServer || started || runner == null)
-            return;
-
-        if (laneId >= 0 && runner.LaneId != laneId)
-            return;
-
-
-        if (gameManager == null)
-        {
-            Debug.LogError(
-                $"{name} 找不到 GameManager"
-            );
-
-            return;
-        }
-
-
-        if (!gameManager.BeginCombat(this, runner))
-            return;
-
-        participant = runner;
-        started = true;
-
-
-        Debug.Log(
-            $"{name} Begin Encounter"
-        );
-
-
-        SetBarriers(
-            true
-        );
-
-
-        SpawnEnemies();
-    }
-
-
-    // ========================================
-    // Spawn
-    // ========================================
 
     private void SpawnEnemies()
     {
-        aliveEnemies.Clear();
-
-
+        if (prepared) return;
+        prepared = true;
         if (enemyPrefab == null && (enemyVariants == null || enemyVariants.Length == 0))
-        {
-            Debug.LogError(
-                $"{name} 没有配置 Enemy Prefab"
-            );
-
-            return;
-        }
-
-
+        { Debug.LogWarning($"{name}: no enemy prefab configured."); cleared = true; return; }
         var random = new ProceduralRandom(contentSeed);
-        float remainingBudget = Mathf.Max(1f, baseSpawnBudget * difficulty);
-        int spawnedCount = 0;
-
-        while (remainingBudget >= 0.75f && spawnedCount < maximumEnemies)
+        int count = Mathf.Clamp(Mathf.RoundToInt(baseSpawnBudget * Mathf.Sqrt(Mathf.Max(.5f, difficulty))) +
+            random.Range(-1, 1), 2, Mathf.Min(4, Mathf.Max(2, maximumEnemies)));
+        float lastZ = 0;
+        for (int i = 0; i < count; i++)
         {
-            EnemyArchetype archetype = SelectArchetype(ref random, difficulty);
-            float cost = GetArchetypeCost(archetype);
-            if (cost > remainingBudget && spawnedCount > 0)
-                break;
-
-            Enemy prefab = SelectEnemyPrefab(ref random);
-            if (prefab == null)
-                break;
-
-            GetSpawnPose(ref random, spawnedCount, out Vector3 position, out Quaternion rotation);
-
-
-            Enemy enemy =
-                Instantiate(
-                    prefab,
-                    position,
-                    rotation
-                );
-            enemy.ConfigureServer(
-                ProceduralRandom.Derive(contentSeed, spawnedCount, laneId),
-                laneId,
-                difficulty,
-                archetype);
-            NetworkObject networkObject = enemy.GetComponent<NetworkObject>();
+            var prefab = SelectEnemyPrefab(ref random); if (prefab == null) continue;
+            if (!TryGetSpawnPose(ref random, i, count, out Vector3 position)) continue;
+            var enemy = Instantiate(prefab, position, Quaternion.LookRotation(Vector3.back));
+            var kind = SelectArchetype(ref random, difficulty);
+            bool eliteDefender = i == 0 && GameManager.instance != null && GameManager.instance.IsEliteRoad;
+            if (eliteDefender) kind = random.Chance(.5f) ? EnemyArchetype.Charger : EnemyArchetype.Ranged;
+            enemy.ConfigureServer(ProceduralRandom.Derive(contentSeed, i, laneId), laneId,
+                difficulty * (eliteDefender ? 1.25f : 1), kind);
+            var networkObject = enemy.GetComponent<NetworkObject>();
             if (networkObject == null)
-            {
-                Debug.LogError($"{enemy.name} is missing NetworkObject.");
-                Destroy(enemy.gameObject);
-                spawnedCount++;
-                remainingBudget -= cost;
-                continue;
-            }
-
+            { Destroy(enemy.gameObject); Debug.LogError("Enemy prefab requires a registered NetworkObject."); continue; }
             networkObject.Spawn(true);
-
-            enemy.Died +=
-                HandleEnemyDied;
-
-
-            aliveEnemies.Add(
-                enemy
-            );
-
-            spawnedCount++;
-            remainingBudget -= cost;
+            enemy.Died += HandleEnemyDied; aliveEnemies.Add(enemy);
+            lastZ = Mathf.Max(lastZ, ResolveSectionRoot().InverseTransformPoint(position).z);
         }
-
-
-        Debug.Log(
-            $"{name} Spawn Enemy：{aliveEnemies.Count}"
-        );
-
-
-        if (
-            aliveEnemies.Count ==
-            0
-        )
-        {
-            ClearEncounter();
-        }
+        retirementZ = Mathf.Max(12, lastZ + 6);
+        if (aliveEnemies.Count == 0) cleared = true;
     }
 
     private Enemy SelectEnemyPrefab(ref ProceduralRandom random)
     {
         if (enemyVariants != null && enemyVariants.Length > 0)
         {
-            int start = random.Range(0, enemyVariants.Length);
-            for (int offset = 0; offset < enemyVariants.Length; offset++)
-            {
-                Enemy candidate = enemyVariants[(start + offset) % enemyVariants.Length];
-                if (candidate != null)
-                    return candidate;
-            }
+            int first = random.Range(0, enemyVariants.Length);
+            for (int i = 0; i < enemyVariants.Length; i++)
+            { var candidate = enemyVariants[(first + i) % enemyVariants.Length]; if (candidate != null) return candidate; }
         }
-
         return enemyPrefab;
     }
 
-    private EnemyArchetype SelectArchetype(ref ProceduralRandom random, float encounterDifficulty)
+    private static EnemyArchetype SelectArchetype(ref ProceduralRandom random, float difficulty)
     {
         float roll = random.Range(0f, 1f);
-        float advancedChance = Mathf.InverseLerp(0.75f, 3.5f, encounterDifficulty);
-
-        if (roll < 0.38f - advancedChance * 0.12f)
-            return EnemyArchetype.Chaser;
-        if (roll < 0.66f)
-            return EnemyArchetype.Strafer;
-        if (roll < 0.82f + advancedChance * 0.08f)
-            return EnemyArchetype.Charger;
+        float specialChance = Mathf.InverseLerp(.75f, 3.5f, difficulty);
+        if (roll < .50f - specialChance * .12f) return EnemyArchetype.Chaser;
+        if (roll < .75f) return EnemyArchetype.Strafer;
+        if (roll < .87f) return EnemyArchetype.Charger;
         return EnemyArchetype.Ranged;
     }
 
-    private static float GetArchetypeCost(EnemyArchetype archetype)
+    private bool TryGetSpawnPose(ref ProceduralRandom random, int index, int count, out Vector3 position)
     {
-        return archetype switch
+        Transform root = ResolveSectionRoot();
+        var section = root.GetComponent<LevelSection>();
+        if (section == null && spawnPoints != null && spawnPoints.Length > 0)
         {
-            EnemyArchetype.Charger => 1.6f,
-            EnemyArchetype.Ranged => 1.35f,
-            EnemyArchetype.Strafer => 1.1f,
-            _ => 1f
-        };
+            var point = spawnPoints[index % spawnPoints.Length];
+            if (point != null && IsSafePlacement(root, root.InverseTransformPoint(point.position)))
+            { position = point.position; return true; }
+        }
+        float length = 20;
+        if (section != null && section.TryGetExitPose(out var exit, out _))
+            length = Mathf.Max(12, root.InverseTransformPoint(exit).z);
+        float depth = Mathf.Lerp(6.5f, length - 2.5f, index / (float)Mathf.Max(1, count - 1));
+        int startSlot = random.Range(0, 5);
+        position = root.TransformPoint(new Vector3((startSlot - 2) * 2.5f, 0, depth));
+        for (int attempt = 0; attempt < 20; attempt++)
+        {
+            int slot = (startSlot + attempt * 2) % 5;
+            float jitter = Mathf.Clamp(spawnJitter * .12f, 0, .25f);
+            float x = (slot - 2) * 2.5f + random.Range(-jitter, jitter);
+            float z = Mathf.Clamp(depth + random.Range(-.35f, .35f), 5.5f, length - 1.8f);
+            Vector3 local = new Vector3(x, 0, z);
+            if (!IsSafePlacement(root, local)) continue;
+            position = root.TransformPoint(local); return true;
+        }
+        // The planner reserves a shoulder. Validate both edges rather than
+        // silently putting an enemy into a moving obstacle on unlucky seeds.
+        float side = random.Chance(.5f) ? -1 : 1;
+        for (int i = 0; i < 2; i++)
+        {
+            var local = new Vector3(side * 6.25f, 0, depth);
+            if (IsSafePlacement(root, local)) { position = root.TransformPoint(local); return true; }
+            side = -side;
+        }
+        return false;
     }
 
-    private void GetSpawnPose(
-        ref ProceduralRandom random,
-        int index,
-        out Vector3 position,
-        out Quaternion rotation)
+    private bool IsSafePlacement(Transform sectionRoot, Vector3 local)
     {
-        Transform point = null;
-        if (spawnPoints != null && spawnPoints.Length > 0)
-            point = spawnPoints[index % spawnPoints.Length];
-
-        if (point != null)
+        foreach (var obstacle in RunnerObstacleRuntime.ActiveObstacles)
         {
-            position = point.position;
-            rotation = point.rotation;
+            if (obstacle == null || obstacle.IsDestroyed || obstacle.LaneId != laneId ||
+                obstacle.GetComponentInParent<LevelSection>()?.transform != sectionRoot) continue;
+            if (RunnerDefenderPlacement.OverlapsObstacle(local, obstacle.Plan)) return false;
         }
-        else
-        {
-            position = transform.position + transform.forward * (4f + index * 1.4f);
-            rotation = transform.rotation;
-        }
-
-        position += transform.right * random.Range(-spawnJitter, spawnJitter);
-        position += transform.forward * random.Range(-0.6f, 0.6f);
+        Vector3 world = sectionRoot.TransformPoint(local);
+        foreach (var enemy in aliveEnemies)
+            if (enemy != null && (world - enemy.transform.position).sqrMagnitude < 2.2f * 2.2f) return false;
+        return true;
     }
 
     private Transform ResolveSectionRoot()
     {
-        LevelSection section = GetComponentInParent<LevelSection>();
-        return section != null ? section.transform : transform.root;
+        var section = GetComponentInParent<LevelSection>();
+        return section != null ? section.transform : transform;
     }
-
-
-    // ========================================
-    // Death
-    // ========================================
-
-    private void HandleEnemyDied(
-        Enemy enemy
-    )
+    private void OpenBarriers()
     {
-        if(!IsServer) return;
-        if (enemy == null)
-            return;
-
-
-        enemy.Died -=
-            HandleEnemyDied;
-
-
-        aliveEnemies.Remove(
-            enemy
-        );
-
-
-        Debug.Log(
-            $"{name} Remaining Enemy：{aliveEnemies.Count}"
-        );
-
-
-        if (
-            aliveEnemies.Count ==
-            0
-        )
-        {
-            ClearEncounter();
-        }
+        if (barriers != null) foreach (var barrier in barriers) if (barrier != null) barrier.SetActive(false);
     }
-
-    private void ClearEncounter()
+    private void HandleEnemyDied(Enemy enemy)
     {
-        if (cleared)
-            return;
-
-
-        cleared =
-            true;
-
-
-        Debug.Log(
-            $"{name} Cleared"
-        );
-
-
-        gameManager.CompleteCombat(this, participant);
+        if (!IsServer || enemy == null) return;
+        enemy.Died -= HandleEnemyDied; aliveEnemies.Remove(enemy);
+        if (aliveEnemies.Count > 0 || cleared) return;
+        cleared = true;
+        // Kill rewards are physical drops at Enemy.Died, never modal choices.
+        if (participant != null) gameManager?.CompleteCombat(this, participant);
     }
-
 }

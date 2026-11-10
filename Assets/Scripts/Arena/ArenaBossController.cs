@@ -11,6 +11,7 @@ public sealed class ArenaBossController : MonoBehaviour,IArenaDamageable
     private int stage=1,wave;
     private bool hadPlayers;
     private ArenaMatchResult result;
+    private ArenaBossMotion motion;
     public readonly BossElementState Elements=new BossElementState();
     public int ArenaTeamId=>2;
     public bool IsArenaAlive=>health>0&&result==ArenaMatchResult.None;
@@ -22,6 +23,7 @@ public sealed class ArenaBossController : MonoBehaviour,IArenaDamageable
     public void Initialize(ArenaBootstrap owner,float baseHealth)
     {
         bridge=owner;
+        motion=new ArenaBossMotion(transform.position);
         int count=Mathf.Max(1,Players().Length);
         maxHealth=Mathf.Max(220,baseHealth)*(1+.65f*(count-1)); health=maxHealth;
         nextWave=Time.time+2; Broadcast();
@@ -37,8 +39,13 @@ public sealed class ArenaBossController : MonoBehaviour,IArenaDamageable
         if(desired>stage)
         {
             stage=desired; wave=0; transitionUntil=Time.time+1.4f;
-            bridge.ClearBossBullets(); nextWave=transitionUntil; Broadcast();
+            motion.SetStage(stage);motion.HoldUntil(transitionUntil);
+            bridge.ClearBossBullets(reason:ArenaBulletClearReason.PhaseTransition); nextWave=transitionUntil; Broadcast();
         }
+        transform.position=motion.Tick(Time.time,Time.deltaTime,Time.time<Elements.SlowedUntil);
+        transform.rotation=Quaternion.Slerp(transform.rotation,Quaternion.LookRotation(Vector3.back),Time.deltaTime*5);
+        Physics.SyncTransforms();
+        bridge.BroadcastBossPose(transform.position,transform.forward,motion.Velocity);
         if(Time.time>=nextWave&&Time.time>=transitionUntil)
         {
             EmitWave(players);
@@ -57,7 +64,8 @@ public sealed class ArenaBossController : MonoBehaviour,IArenaDamageable
         health=Mathf.Max(0,health-hit.Amount*multiplier);
         if(Elements.LastBrokeShield)
         {
-            bridge.ClearBossBullets(); nextWave=Time.time+1.5f;
+            motion.HoldUntil(Elements.ExposedUntil);
+            bridge.ClearBossBullets(reason:ArenaBulletClearReason.ArmorBreak); nextWave=Time.time+1.5f;
         }
         Broadcast(); if(health<=0)Finish(ArenaMatchResult.Victory);
     }
@@ -90,6 +98,7 @@ public sealed class ArenaBossController : MonoBehaviour,IArenaDamageable
     }
     private void AimedStreams(ArenaPlayerNetwork[] players)
     {
+        motion.HoldUntil(Time.time+1.1f);
         foreach(var player in players)
         {
             if(!player.IsArenaAlive)continue;
@@ -131,5 +140,5 @@ public sealed class ArenaBossController : MonoBehaviour,IArenaDamageable
     private void Broadcast()=>bridge?.BroadcastBossState(health,maxHealth,result,stage,
         Elements.BreakGauge,Mathf.Max(0,Elements.ExposedUntil-Time.time),Elements.Aura,Elements.LastReaction);
     private void Finish(ArenaMatchResult outcome)
-    { result=outcome; bridge.ClearBossBullets(); Broadcast(); bridge.NotifyMatchEnded(outcome); }
+    { result=outcome; bridge.ClearBossBullets(reason:ArenaBulletClearReason.MatchEnd); Broadcast(); bridge.NotifyMatchEnded(outcome); }
 }
